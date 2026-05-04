@@ -475,6 +475,12 @@ const SCRAPER = `(function(){
   function cleanCourseTitle(s){
     return norm(s).replace(/\\s+Registered\\b.*$/i,'').replace(/\\s+Actions\\b.*$/i,'');
   }
+  function getScheduleRoot(){
+    return document.querySelector('#SAOTServicesScheduleBuilder #MainContainer #LeftContainer #SavedSchedulesListDisplayContainer')||
+      document.querySelector('#LeftContainer #SavedSchedulesListDisplayContainer')||
+      document.querySelector('#SavedSchedulesListDisplayContainer')||
+      document.body;
+  }
   function looksLikeCourseTitle(s){
     s=cleanCourseTitle(s);
     return COURSE_RE.test(s)&&!/^Course Details/i.test(s)&&s.length<160;
@@ -490,8 +496,10 @@ const SCRAPER = `(function(){
     return m?cleanCourseTitle(m[0]):'Unknown';
   }
   function bestCourseBlock(registeredEl){
+    var root=getScheduleRoot();
     var best=null,p=registeredEl.parentElement,depth=0;
     while(p&&p!==document.body&&depth++<18){
+      if(root!==document.body&&!root.contains(p))return null;
       var txt=norm(p.innerText||p.textContent||'');
       if(/\\b(SUGGESTED COURSES|PREVIOUSLY SAVED COURSES|Final Exams)\\b/i.test(txt)){
         p=p.parentElement;
@@ -499,14 +507,17 @@ const SCRAPER = `(function(){
       }
       if(/\\bRegistered\\b/.test(txt)&&COURSE_RE.test(txt)&&/\\bCRN\\b/i.test(txt)&&/\\bUnits\\b/i.test(txt)){
         best=p;
+        if(p.parentElement===root&&p.id)return p;
         if(/\\bActions\\b/i.test(txt)&&/Course Details|Important Course Details/i.test(txt))break;
       }
+      if(p===root)break;
       p=p.parentElement;
     }
     return best;
   }
   function expandVisibleDetails(){
-    Array.from(document.querySelectorAll('button,a,[role="button"],.panel-heading,.accordion-toggle')).forEach(function(el){
+    var root=getScheduleRoot();
+    Array.from(root.querySelectorAll('button,a,[role="button"],.panel-heading,.accordion-toggle')).forEach(function(el){
       var txt=norm(el.innerText||el.textContent||'');
       if(!/^(Important Course Details|Course Details)$/i.test(txt))return;
       if(el.getAttribute('aria-expanded')==='false'||/collapsed/i.test(el.className||'')){
@@ -567,10 +578,17 @@ const SCRAPER = `(function(){
  
   var events=[];
   var seen={};
+  var scheduleRoot=getScheduleRoot();
   expandVisibleDetails();
  
   var registeredBlocks=new Set();
-  document.querySelectorAll('*').forEach(function(el){
+  Array.from(scheduleRoot.children).forEach(function(child){
+    var txt=norm(child.innerText||child.textContent||'');
+    if(child.id&&/\\bRegistered\\b/.test(txt)&&COURSE_RE.test(txt)&&/\\bCRN\\b/i.test(txt)&&/\\bUnits\\b/i.test(txt)){
+      registeredBlocks.add(child);
+    }
+  });
+  scheduleRoot.querySelectorAll('*').forEach(function(el){
     if(el.children.length===0&&el.textContent.trim()==='Registered'){
       var around=norm(el.closest('body')?el.parentElement&&el.parentElement.innerText:'');
       if(/\\b(SUGGESTED COURSES|PREVIOUSLY SAVED COURSES|Final Exams)\\b/i.test(around))return;
@@ -579,7 +597,7 @@ const SCRAPER = `(function(){
     }
   });
  
-  var searchScope=registeredBlocks.size>0?Array.from(registeredBlocks):[document.body];
+  var searchScope=registeredBlocks.size>0?Array.from(registeredBlocks):[scheduleRoot];
  
   searchScope.forEach(function(scope){
     var courseName=getCourseTitle(scope);
