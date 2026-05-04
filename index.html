@@ -463,8 +463,9 @@ const SCRAPER = `(function(){
   }
   function expandDays(str){
     var s=str.trim(),r=[];
+    var validDays={M:true,T:true,W:true,R:true,F:true};
     for(var i=0;i<s.length;i++){
-      if('MTWRF'.includes(s[i]))r.push(s[i]);
+      if(validDays[s[i]])r.push(s[i]);
     }
     return r;
   }
