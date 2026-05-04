@@ -390,7 +390,7 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
       <div class="step-num" id="num2">2</div>
       <div class="step-title">Run this on Schedule Builder</div>
     </div>
-    <p class="step-desc">Go to Schedule Builder → switch to <strong>Calendar view</strong> → open the browser console (F12 → Console) → paste and run this:</p>
+    <p class="step-desc">Go to Schedule Builder → stay on <strong>List view</strong> → expand all "Important Course Details" → open the browser console (F12 → Console) → paste and run this:</p>
     <div class="code-wrap">
       <button class="copy-btn" onclick="copyScript()">Copy</button>
       <pre id="script-display">Loading...</pre>
@@ -448,69 +448,124 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
 <div class="tooltip" id="tooltip"></div>
 
 <script>
-// ─── SCRAPER SCRIPT (runs on Schedule Builder) ───────────────────────────────
+// ─── SCRAPER SCRIPT (runs on Schedule Builder list view) ─────────────────────
 const SCRAPER = `(function(){
+  function parseTime(t){
+    var m=t.trim().match(/(\\d+):(\\d+)\\s*(AM|PM)/i);
+    if(!m)return null;
+    var h=parseInt(m[1]),min=parseInt(m[2]),ap=m[3].toUpperCase();
+    if(ap==='PM'&&h!==12)h+=12;
+    if(ap==='AM'&&h===12)h=0;
+    return{h:h,min:min};
+  }
+  function expandDays(str){
+    // "TR"->["T","R"], "MW"->["M","W"], "MWF"->["M","W","F"], "F"->["F"]
+    var s=str.trim(),r=[];
+    for(var i=0;i<s.length;i++){
+      if(s[i]==='T'&&s[i+1]==='R'){r.push('R');i++;}
+      else if('MTWF'.includes(s[i]))r.push(s[i]);
+    }
+    return r;
+  }
   var events=[];
   var seen={};
-  document.querySelectorAll('.long-event').forEach(function(e){
-    var classes=Array.from(e.classList);
-    var idCls=classes.find(function(c){return c.match(/^\\d{6}_/);});
-    if(!idCls)return;
-    var key=idCls;
-    if(seen[key])return;
-    seen[key]=true;
-    var m=idCls.match(/^(\\d{6})_(\\d+)_(\\d+)_([MTWRF])@/);
-    if(!m)return;
-    var day=m[4];
-    var par=e.parentElement;
-    var parClasses=Array.from(par.classList);
-    var zhCls=parClasses.find(function(c){return c.startsWith('zh');});
-    var isHalf=parClasses.includes('half');
-    var startH=zhCls?parseInt(zhCls.replace('zh','')):(isHalf?null:8);
-    var startMin=isHalf?30:0;
-    // if half but no zh, look at previous sibling's zh
-    if(isHalf&&!zhCls){
-      var prev=par.previousElementSibling;
-      while(prev){
-        var ppc=Array.from(prev.classList);
-        var pzh=ppc.find(function(c){return c.startsWith('zh');});
-        if(pzh){startH=parseInt(pzh.replace('zh',''));break;}
-        prev=prev.previousElementSibling;
+  // Only scrape registered courses - find course blocks with "Registered" badge
+  var registeredCRNs={};
+  document.querySelectorAll('.registered, [class*="registered"]').forEach(function(el){
+    var block=el.closest('[class*="course"], section, article, .row, div[id]');
+    if(block)registeredCRNs[block]=true;
+  });
+
+  document.querySelectorAll('tr').forEach(function(row){
+    var tds=Array.from(row.querySelectorAll('td'));
+    if(tds.length<3)return;
+    var texts=tds.map(function(t){return t.textContent.trim();});
+    if(!texts.some(function(t){return/\\d+:\\d+\\s*(AM|PM)/i.test(t);}))return;
+
+    // Get course name by walking up DOM
+    var name='Unknown';
+    var el=row.parentElement;
+    while(el&&el!==document.body){
+      var all=Array.from(el.querySelectorAll('*'));
+      var found=all.find(function(n){
+        return /^[A-Z]{2,4}\\s*\\d{3}/.test(n.textContent.trim())&&n.children.length<3;
+      });
+      if(found){name=found.textContent.trim().split('\\n')[0].trim();break;}
+      el=el.parentElement;
+    }
+
+    // Only include registered courses (name contains "Registered" or is in registered section)
+    var isRegistered=name.indexOf('Registered')!==-1;
+    // Also check if this row is inside a registered course block
+    if(!isRegistered){
+      var p=row;
+      while(p&&p!==document.body){
+        if(p.querySelector&&p.querySelector('.registered,[class*="Registered"]')){isRegistered=true;break;}
+        // Check text of direct child spans/divs for "Registered" badge
+        var badge=Array.from(p.children||[]).find(function(c){
+          return c.textContent.trim()==='Registered'||c.className.indexOf('registered')>-1;
+        });
+        if(badge){isRegistered=true;break;}
+        p=p.parentElement;
       }
     }
-    if(startH===null)startH=8;
-    var px=e.offsetHeight;
-    var durMin=Math.round(px/0.333*2);
-    // 1px ~ 2min based on: 45px=90min, 99px=198min~3h18m... recalc
-    // Known: zh16 45px = 4pm-5:30pm = 90min => 45px/90min => 0.5px/min
-    durMin=Math.round(px*2);
-    var name=e.textContent.trim().replace(/\\s*\\(Registered\\)\\s*$/,'').trim();
-    var color=classes.find(function(c){return['dkred','ltred','dkgreen','ltgreen','dkblue','ltblue','ltbrown'].includes(c);})||'default';
-    // Try to get location from the list view
-    var loc='';
-    var crn=classes.find(function(c){return c.startsWith('c')&&c.length>3&&!isNaN(c.slice(1));});
-    if(crn){
-      var crn_num=crn.slice(1);
-      document.querySelectorAll('tr').forEach(function(row){
-        var tds=row.querySelectorAll('td');
-        if(tds.length<4)return;
-        var txt=Array.from(tds).map(function(t){return t.textContent.trim();});
-        var hasTime=txt.some(function(t){return/\\d+:\\d+\\s*[AP]M/i.test(t);});
-        if(!hasTime)return;
-        var locCand=txt.filter(function(t,i){
-          return t.length>3&&!/^[MTWRF]+$/.test(t)&&!/\\d+:\\d+/.test(t)&&i>0;
-        });
-        if(locCand.length>0&&!loc)loc=locCand[locCand.length-1];
+    if(!isRegistered)return;
+
+    // Clean name
+    name=name.replace(/\\s*(Registered|registered)\\s*/g,'').replace(/\\s+/g,' ').trim();
+
+    // Parse time
+    var timeStr=texts.find(function(t){return/\\d+:\\d+\\s*(AM|PM).*-.*\\d+:\\d+\\s*(AM|PM)/i.test(t);});
+    if(!timeStr)return;
+    var tm=timeStr.match(/(\\d+:\\d+\\s*[AP]M)\\s*-\\s*(\\d+:\\d+\\s*[AP]M)/i);
+    if(!tm)return;
+    var st=parseTime(tm[1]),et=parseTime(tm[2]);
+    if(!st||!et)return;
+    var durMin=(et.h*60+et.min)-(st.h*60+st.min);
+    if(durMin<0)durMin+=1440;
+
+    // Days
+    var daysStr=texts.find(function(t){return/^[MTWRF]{1,5}$/.test(t.trim());})||'';
+    var days=expandDays(daysStr);
+    if(days.length===0)return;
+
+    // Location - last non-time, non-day cell
+    var loc=texts.filter(function(t){
+      return t.length>2&&!/^[MTWRF]{1,5}$/.test(t)&&!/\\d+:\\d+/.test(t)&&t!==texts[0];
+    }).pop()||'';
+
+    // Type (Lecture/Lab/Discussion)
+    var type=texts[0]||'Class';
+
+    // Deduplicate: same name+type+time+days
+    var key=name+'|'+type+'|'+timeStr+'|'+daysStr;
+    if(seen[key])return;
+    seen[key]=true;
+
+    days.forEach(function(day){
+      events.push({
+        name:name+' ('+type+')',
+        day:day,
+        startH:st.h,
+        startMin:st.min,
+        durMin:durMin,
+        location:loc,
+        color:'default'
       });
-    }
-    events.push({name:name,day:day,startH:startH,startMin:startMin,durMin:durMin,color:color,location:loc});
+    });
   });
+
+  if(events.length===0){
+    alert('No registered courses found.\\n\\nMake sure you are on the Schedule Builder LIST view (not calendar view) and that your courses show as Registered.');
+    return;
+  }
+
   var out=JSON.stringify(events);
   console.log('');
-  console.log('%cAGGIE_CAL: Copy everything below this line','color:#ff6b35;font-weight:bold;font-size:14px');
+  console.log('%cAGGIE_CAL: Copy everything below this line','color:#ff6b35;font-weight:bold;font-size:14px;');
   console.log(out);
-  console.log('%cAGGIE_CAL: Copy everything above this line','color:#ff6b35;font-weight:bold;font-size:14px');
-  alert('Done! '+events.length+' sessions found.\\n\\nNow copy the JSON text from the console (between the orange lines) and paste it into the Aggie Cal Export app.');
+  console.log('%cAGGIE_CAL: Copy everything above this line','color:#ff6b35;font-weight:bold;font-size:14px;');
+  alert('Done! Found '+events.length+' sessions.\\n\\nIn the console, copy the text between the two orange lines and paste it into the Aggie Cal Export app.');
 })();`;
 
 document.getElementById('script-display').textContent = SCRAPER;
