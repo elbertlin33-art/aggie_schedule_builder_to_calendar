@@ -967,7 +967,7 @@ a, button, label, input, select, textarea, [onclick] { cursor: none !important; 
         </div>
         <div class="syllabus-actions">
           <div class="api-key-row">
-            <input id="gemini-api-key" type="password" placeholder="Gemini API key (optional — for smarter AI scanning)" autocomplete="off">
+            <input id="gemini-api-key" type="password" placeholder="Gemini API key (optional, uses Flash-Lite)" autocomplete="off">
             <a href="https://aistudio.google.com/app/apikey" target="_blank" style="font-family:var(--mono);font-size:10px;color:var(--accent2);white-space:nowrap;">Get key ↗</a>
           </div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:0.4rem;">
@@ -1422,8 +1422,26 @@ function normalizeEvent(ev) {
   return normalized;
 }
 
+function eventDedupeKey(ev) {
+  const course = String(ev.courseName || '').trim().toLowerCase();
+  const type = String(ev.kind || ev.type || '').trim().toLowerCase();
+  const location = String(ev.location || '').trim().toLowerCase();
+  if(ev.oneOff) return ['one', course, type, ev.date, ev.startH, ev.startMin, ev.durMin, location].join('|');
+  if(ev.unscheduled) return ['tba', course, type, ev.note].join('|');
+  return ['week', course, type, ev.day, ev.startH, ev.startMin, ev.durMin, location].join('|');
+}
+
 function showPreview(events, shouldScroll = true) {
-  parsedEvents = events.map(normalizeEvent).filter(ev => ev.unscheduled || isScheduledEvent(ev));
+  const seen = new Set();
+  parsedEvents = events
+    .map(normalizeEvent)
+    .filter(ev => ev.unscheduled || isScheduledEvent(ev))
+    .filter(ev => {
+      const key = eventDedupeKey(ev);
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   renderPreview(parsedEvents);
   document.getElementById('preview-section').style.display = 'block';
   if (shouldScroll) document.getElementById('preview-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1498,6 +1516,15 @@ function addManualEvent() {
   showPreview(parsedEvents.concat(added));
 }
 
+function sameExamEvent(ev, next) {
+  if(!ev.oneOff || !next.oneOff) return false;
+  const sameCourse = String(ev.courseName || '').trim().toLowerCase() === String(next.courseName || '').trim().toLowerCase();
+  const sameDate = ev.date === next.date;
+  const sameStart = Number(ev.startH) === Number(next.startH) && Number(ev.startMin) === Number(next.startMin);
+  const sameKind = String(ev.kind || ev.type || '').trim().toLowerCase() === String(next.kind || next.type || '').trim().toLowerCase();
+  return sameCourse && sameDate && sameStart && sameKind;
+}
+
 function addManualExam(candidate) {
   const course = candidate?.course || document.getElementById('exam-course').value.trim();
   const title = candidate?.title || document.getElementById('exam-title').value.trim() || 'Midterm';
@@ -1513,7 +1540,7 @@ function addManualExam(candidate) {
   let durMin = end.total - start.total;
   if(durMin <= 0) durMin += 1440;
 
-  showPreview(parsedEvents.concat([{
+  const exam = {
     name: `${course} (${title})`,
     courseName: course,
     type: title,
@@ -1525,7 +1552,14 @@ function addManualExam(candidate) {
     durMin,
     location,
     color: 'default'
-  }]));
+  };
+
+  if(parsedEvents.some(ev => sameExamEvent(ev, exam))) {
+    alert('That exam is already in your schedule.');
+    return;
+  }
+
+  showPreview(parsedEvents.concat([exam]));
 }
 
 async function readSyllabusText(file) {
@@ -1539,7 +1573,24 @@ async function readSyllabusText(file) {
     for(let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       const page = await pdf.getPage(pageNum);
       const content = await page.getTextContent();
-      text += content.items.map(item => item.str).join(' ') + '\n';
+      const rows = [];
+      content.items
+        .map(item => ({
+          text: item.str,
+          x: item.transform[4],
+          y: item.transform[5]
+        }))
+        .filter(item => item.text && item.text.trim())
+        .sort((a, b) => Math.abs(b.y - a.y) > 3 ? b.y - a.y : a.x - b.x)
+        .forEach(item => {
+          const row = rows.find(r => Math.abs(r.y - item.y) <= 3);
+          if(row) row.items.push(item);
+          else rows.push({ y: item.y, items: [item] });
+        });
+      text += rows
+        .sort((a, b) => b.y - a.y)
+        .map(row => row.items.sort((a, b) => a.x - b.x).map(item => item.text).join(' '))
+        .join('\n') + '\n';
     }
     return text;
   }
@@ -1562,13 +1613,20 @@ function normalizeSyllabusDate(raw) {
 }
 
 function extractSyllabusCandidates(text) {
+  const normalized = String(text || '').replace(/\s+/g, ' ');
   const lines = text.split(/\n|(?<=\.)\s+/).map(s => s.replace(/\s+/g,' ').trim()).filter(Boolean);
   const hits = [];
   const dateRe = /(\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:,?\s*\d{4})?)/i;
   const timeRe = /(\d{1,2}:\d{2})\s*(AM|PM)?(?:\s*-\s*(\d{1,2}:\d{2})\s*(AM|PM)?)?/i;
-  lines.forEach(line => {
+  const addHit = line => {
     if(!/\b(midterm|exam|test|final)\b/i.test(line)) return;
-    const dateMatch = line.match(dateRe);
+    if(/\b(no class|drop|withdraw|last day|office hours|review session)\b/i.test(line)) return;
+    const keywordMatch = line.match(/\b(midterm\s*\d*|final\s+exam|final|exam\s*\d*|test\s*\d*)\b/i);
+    const dates = Array.from(line.matchAll(new RegExp(dateRe.source, 'gi')));
+    if(!dates.length) return;
+    const dateMatch = keywordMatch
+      ? dates.sort((a, b) => Math.abs(a.index - keywordMatch.index) - Math.abs(b.index - keywordMatch.index))[0]
+      : dates[0];
     if(!dateMatch) return;
     const date = normalizeSyllabusDate(dateMatch[1]);
     if(!date) return;
@@ -1585,9 +1643,23 @@ function extractSyllabusCandidates(text) {
         end = `${pad((h + 1) % 24)}:${pad(m)}`;
       }
     }
-    hits.push({ title: /final/i.test(line) ? 'Final Exam' : 'Midterm', date, start, end, line });
+    let title = keywordMatch ? keywordMatch[1].replace(/\s+/g, ' ').trim() : 'Midterm';
+    title = /final/i.test(title) ? 'Final Exam' : title.replace(/\b\w/g, c => c.toUpperCase());
+    hits.push({ title, date, start, end, line: line.slice(0, 220) });
+  };
+  lines.forEach(addHit);
+  Array.from(normalized.matchAll(/\b(midterm\s*\d*|final\s+exam|final|exam\s*\d*|test\s*\d*)\b/gi)).forEach(match => {
+    const start = Math.max(0, match.index - 120);
+    const end = Math.min(normalized.length, match.index + 180);
+    addHit(normalized.slice(start, end));
   });
-  return hits.slice(0, 8);
+  const seen = new Set();
+  return hits.filter(hit => {
+    const key = `${hit.title}|${hit.date}|${hit.start}|${hit.end}`;
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 8);
 }
 
 function parseLooseTime(time, ap) {
@@ -1599,15 +1671,64 @@ function parseLooseTime(time, ap) {
   return `${pad(h)}:${pad(m)}`;
 }
 
+function dateEvidencePatterns(date) {
+  const m = String(date || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m) return [];
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const names = [
+    ['jan', 'january'], ['feb', 'february'], ['mar', 'march'], ['apr', 'april'],
+    ['may'], ['jun', 'june'], ['jul', 'july'], ['aug', 'august'],
+    ['sep', 'sept', 'september'], ['oct', 'october'], ['nov', 'november'], ['dec', 'december']
+  ][month - 1];
+  if(!names || day < 1 || day > 31) return [];
+  return [
+    new RegExp(`\\b0?${month}[\\/-]0?${day}(?:[\\/-]\\d{2,4})?\\b`, 'i'),
+    new RegExp(`\\b(?:${names.join('|')})\\.?\\s+0?${day}(?:,?\\s*\\d{4})?\\b`, 'i')
+  ];
+}
+
+function filterCandidatesWithTextEvidence(candidates, text) {
+  const source = String(text || '').replace(/\s+/g, ' ');
+  return (Array.isArray(candidates) ? candidates : []).filter(candidate => {
+    if(!candidate || !candidate.date || !parseTimeInput(candidate.start || '') || !parseTimeInput(candidate.end || '')) return false;
+    const patterns = dateEvidencePatterns(candidate.date);
+    return patterns.some(pattern => {
+      let match;
+      pattern.lastIndex = 0;
+      while((match = pattern.exec(source))) {
+        const around = source.slice(Math.max(0, match.index - 140), Math.min(source.length, match.index + 140));
+        if(/\b(midterm|exam|test|final)\b/i.test(around)) return true;
+        if(!pattern.global) break;
+      }
+      return false;
+    });
+  }).slice(0, 8);
+}
+
 async function scanSyllabusWithGemini(text, apiKey) {
   const currentYear = new Date().getFullYear();
-  const prompt = `You are an academic calendar assistant. Extract ALL midterm exams and final exams from this syllabus text. Return ONLY a JSON array (no markdown, no explanation) with objects having these fields: title (e.g. "Midterm 1", "Final Exam"), date (YYYY-MM-DD, assume year ${currentYear} if not specified), start (HH:MM 24h), end (HH:MM 24h, default 1h after start), line (short excerpt from syllabus confirming this). If no time found, use 12:00 and 13:00. Return [] if none found.\n\nSYLLABUS:\n${text.slice(0, 12000)}`;
-  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+  const prompt = `Extract all midterm exams and final exams from this syllabus. Return only a JSON array with objects: title, date (YYYY-MM-DD, assume ${currentYear} if missing), start (HH:MM 24h), end (HH:MM 24h, default 1 hour after start), line (short confirming excerpt). If time is missing, use 12:00 and 13:00. Return [] if none found.\n\nSYLLABUS:\n${text.slice(0, 7000)}`;
+  const model = 'gemini-2.0-flash-lite';
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 1200,
+        responseMimeType: 'application/json'
+      }
+    })
   });
-  if(!resp.ok) throw new Error(`Gemini API error: ${resp.status}`);
+  if(!resp.ok) {
+    const err = new Error(resp.status === 429
+      ? 'Gemini free-tier quota/rate limit hit. Falling back to local scanning.'
+      : `Gemini API error: ${resp.status}`);
+    err.status = resp.status;
+    throw err;
+  }
   const data = await resp.json();
   const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
   const clean = raw.replace(/```json\n?|```/g, '').trim();
@@ -1621,21 +1742,35 @@ async function scanSyllabus() {
   const out = document.getElementById('syllabus-results');
   const btn = document.getElementById('scan-btn');
   if(!file) { alert('Choose a PDF or text syllabus first.'); return; }
-  out.innerHTML = `<div class="candidate-item"><div class="candidate-title"><span class="spinner"></span>${apiKey ? 'Asking Gemini AI...' : 'Scanning syllabus...'}</div></div>`;
+  out.innerHTML = '<div class="candidate-item"><div class="candidate-title"><span class="spinner"></span>Scanning syllabus...</div></div>';
   btn.disabled = true;
   try {
     const text = await readSyllabusText(file);
-    let candidates;
-    if(apiKey) {
-      candidates = await scanSyllabusWithGemini(text, apiKey);
-    } else {
-      candidates = extractSyllabusCandidates(text);
+    let candidates = extractSyllabusCandidates(text);
+    let fallbackNotice = candidates.length
+      ? '<div class="candidate-item"><div><div class="candidate-title">Found from syllabus text</div><div class="candidate-detail">These come from nearby text in the PDF. Review each result before adding it.</div></div></div>'
+      : '';
+    if(!candidates.length && apiKey) {
+      try {
+        out.innerHTML = '<div class="candidate-item"><div class="candidate-title"><span class="spinner"></span>No local match found. Asking Gemini...</div></div>';
+        candidates = filterCandidatesWithTextEvidence(await scanSyllabusWithGemini(text, apiKey), text);
+      } catch(err) {
+        if(err.status !== 429) throw err;
+        candidates = extractSyllabusCandidates(text);
+        fallbackNotice = '<div class="candidate-item"><div><div class="candidate-title">Gemini free-tier limit reached</div><div class="candidate-detail">Used the built-in scanner instead. Try again after the quota window resets if you want AI scanning.</div></div></div>';
+      }
+      if(candidates.length && !fallbackNotice) {
+        fallbackNotice = '<div class="candidate-item"><div><div class="candidate-title">Found with Gemini</div><div class="candidate-detail">Only AI results with matching date evidence in the syllabus are shown. Still check the excerpt before adding.</div></div></div>';
+      }
     }
     if(!candidates.length) {
-      out.innerHTML = '<div class="candidate-item"><div><div class="candidate-title">No midterm/final dates found</div><div class="candidate-detail">Try adding a Gemini API key above for smarter detection, or add dates manually.</div></div></div>';
+      out.innerHTML = fallbackNotice || '<div class="candidate-item"><div><div class="candidate-title">No midterm/final dates found</div><div class="candidate-detail">Try adding a Gemini API key above for smarter detection, or add dates manually.</div></div></div>';
+      if(fallbackNotice) {
+        out.innerHTML += '<div class="candidate-item"><div><div class="candidate-title">No local matches found</div><div class="candidate-detail">Add the date manually, or try Gemini again after the quota window resets.</div></div></div>';
+      }
       return;
     }
-    out.innerHTML = '';
+    out.innerHTML = fallbackNotice;
     candidates.forEach(candidate => {
       const item = document.createElement('div');
       item.className = 'candidate-item';
