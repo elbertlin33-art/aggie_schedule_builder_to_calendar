@@ -464,8 +464,7 @@ const SCRAPER = `(function(){
   function expandDays(str){
     var s=str.trim(),r=[];
     for(var i=0;i<s.length;i++){
-      if(s[i]==='T'&&s[i+1]==='R'){r.push('R');i++;}
-      else if('MTWF'.includes(s[i]))r.push(s[i]);
+      if('MTWRF'.includes(s[i]))r.push(s[i]);
     }
     return r;
   }
