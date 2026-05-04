@@ -3,156 +3,310 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aggie Scheduler</title>
+<title>Aggie Scheduler — UC Davis Calendar Tool</title>
+<meta name="description" content="Import your UC Davis Schedule Builder courses, finals, and midterms into Google Calendar instantly.">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #fff8f0;
-  --surface: #ffffff;
-  --border: #eadfd3;
-  --text: #241c18;
-  --muted: #8e7f73;
-  --accent: #e35d39;
-  --accent-light: #ffe6da;
-  --green: #2a7a4b;
-  --green-light: #e2f0e8;
-  --blue: #1e4fa3;
-  --blue-light: #e3ecfb;
-  --gold: #b8860b;
-  --gold-light: #faf3d8;
-  --mono: 'IBM Plex Mono', monospace;
-  --sans: 'Syne', sans-serif;
+  --bg: #08090f;
+  --surface: rgba(255,255,255,0.04);
+  --surface-hover: rgba(255,255,255,0.07);
+  --border: rgba(255,255,255,0.09);
+  --border-hover: rgba(139,92,246,0.4);
+  --text: #f0eeff;
+  --muted: #8b8aaa;
+  --accent: #7c3aed;
+  --accent2: #06b6d4;
+  --accent-glow: rgba(124,58,237,0.35);
+  --accent2-glow: rgba(6,182,212,0.25);
+  --green: #10b981;
+  --green-light: rgba(16,185,129,0.12);
+  --blue: #3b82f6;
+  --blue-light: rgba(59,130,246,0.12);
+  --gold: #f59e0b;
+  --gold-light: rgba(245,158,11,0.12);
+  --red: #ef4444;
+  --red-light: rgba(239,68,68,0.12);
+  --mono: 'Space Mono', monospace;
+  --sans: 'Space Grotesk', sans-serif;
+  --radius: 16px;
+  --radius-sm: 10px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+@keyframes float1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(30px,-40px) scale(1.05)} }
+@keyframes float2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-25px,35px) scale(0.96)} }
+@keyframes float3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,20px)} }
+@keyframes shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
+@keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+@keyframes pulse-ring { 0%{transform:scale(0.95);box-shadow:0 0 0 0 rgba(124,58,237,0.5)} 70%{transform:scale(1);box-shadow:0 0 0 10px rgba(124,58,237,0)} 100%{transform:scale(0.95);box-shadow:0 0 0 0 rgba(124,58,237,0)} }
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes glow-pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+
 body {
-  background:
-    radial-gradient(circle at 12% 8%, rgba(255, 214, 153, 0.35), transparent 28%),
-    radial-gradient(circle at 88% 0%, rgba(155, 210, 207, 0.28), transparent 26%),
-    linear-gradient(180deg, #fffaf2 0%, var(--bg) 42%, #fff 100%);
+  background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
   min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* BACKGROUND ORBS */
+.bg-orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+.bg-orb-1 {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(124,58,237,0.18) 0%, transparent 70%);
+  top: -150px; left: -150px;
+  animation: float1 12s ease-in-out infinite;
+}
+.bg-orb-2 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(6,182,212,0.13) 0%, transparent 70%);
+  top: 40%; right: -100px;
+  animation: float2 15s ease-in-out infinite;
+}
+.bg-orb-3 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(245,158,11,0.08) 0%, transparent 70%);
+  bottom: -100px; left: 30%;
+  animation: float3 18s ease-in-out infinite;
+}
+
+/* NOISE OVERLAY */
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;
+  z-index:0;
+  opacity:0.4;
 }
  
 /* HEADER */
 header {
-  background: linear-gradient(135deg, #25211f, #443026);
-  color: var(--bg);
-  padding: 1.5rem 2rem;
+  background: rgba(8,9,15,0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  padding: 1.25rem 2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 10px 30px rgba(36, 28, 24, 0.18);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 40px rgba(124,58,237,0.12);
 }
-.logo { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
-.logo span { color: #ffd166; }
-.logo-sub { font-family: var(--mono); font-size: 10px; color: #f1cdbd; letter-spacing: 0.1em; margin-top: 2px; }
- 
+.logo {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(90deg, #e0d7ff 0%, #7c3aed 40%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.logo-sub { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.12em; margin-top: 3px; }
+.header-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  background: rgba(124,58,237,0.15);
+  border: 1px solid rgba(124,58,237,0.3);
+  color: #a78bfa;
+  letter-spacing: 0.06em;
+}
+
 /* MAIN LAYOUT */
-main { max-width: 960px; margin: 0 auto; padding: 2rem; }
- 
+main { max-width: 960px; margin: 0 auto; padding: 2rem; position: relative; z-index: 1; }
+
+/* HERO */
+.hero {
+  text-align: center;
+  padding: 3rem 1rem 2rem;
+  animation: fadeUp 0.7s ease both;
+}
+.hero-title {
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  background: linear-gradient(135deg, #f0eeff 0%, #a78bfa 50%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 1rem;
+}
+.hero-sub {
+  font-size: 1rem;
+  color: var(--muted);
+  max-width: 500px;
+  margin: 0 auto 2rem;
+  line-height: 1.7;
+}
+.hero-pills {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+}
+.hero-pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 5px 14px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: var(--surface);
+  backdrop-filter: blur(8px);
+}
+
 /* STEP CARDS */
 .step-card {
   background: var(--surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 14px 34px rgba(91, 70, 54, 0.08);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  margin-bottom: 1.25rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  animation: fadeUp 0.6s ease both;
+  position: relative;
+  overflow: hidden;
+}
+.step-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124,58,237,0.5), rgba(6,182,212,0.4), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
 }
 .step-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 42px rgba(91, 70, 54, 0.12);
-  border-color: #e6c8b8;
+  transform: translateY(-3px);
+  border-color: rgba(124,58,237,0.3);
+  background: var(--surface-hover);
+  box-shadow: 0 20px 60px rgba(124,58,237,0.1), 0 0 0 1px rgba(124,58,237,0.1);
 }
+.step-card:hover::before { opacity: 1; }
 .step-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 1rem;
+  gap: 14px;
+  margin-bottom: 1.25rem;
 }
 .step-num {
   font-family: var(--mono);
   font-size: 11px;
-  font-weight: 500;
-  background: var(--text);
-  color: var(--bg);
-  width: 24px; height: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), #9333ea);
+  color: white;
+  width: 28px; height: 28px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.2), 0 4px 12px rgba(124,58,237,0.3);
 }
-.step-num.done { background: var(--green); }
-.step-title { font-size: 16px; font-weight: 600; }
-.step-desc { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 1rem; }
+.step-num.done {
+  background: linear-gradient(135deg, var(--green), #059669);
+  box-shadow: 0 0 0 3px rgba(16,185,129,0.2), 0 4px 12px rgba(16,185,129,0.3);
+}
+.step-title { font-size: 16px; font-weight: 600; color: var(--text); }
+.step-desc { font-size: 13px; color: var(--muted); line-height: 1.7; margin-bottom: 1rem; }
  
 /* CODE BLOCK */
 .code-wrap {
-  background: var(--text);
-  border-radius: 10px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(124,58,237,0.2);
+  border-radius: var(--radius-sm);
   padding: 1rem 1.25rem;
   position: relative;
 }
 .code-wrap pre {
   font-family: var(--mono);
   font-size: 11px;
-  color: #a8e6cf;
+  color: #a5f3fc;
   white-space: pre-wrap;
   word-break: break-all;
-  line-height: 1.6;
+  line-height: 1.7;
   max-height: 120px;
   overflow-y: auto;
 }
 .copy-btn {
   position: absolute;
   top: 8px; right: 8px;
-  background: #333;
-  color: #ccc;
-  border: none;
+  background: rgba(124,58,237,0.2);
+  color: #a78bfa;
+  border: 1px solid rgba(124,58,237,0.3);
   border-radius: 6px;
-  padding: 4px 10px;
+  padding: 4px 12px;
   font-family: var(--mono);
   font-size: 10px;
   cursor: pointer;
-  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  transition: all 0.2s;
 }
-.copy-btn:hover { background: var(--accent); color: white; transform: translateY(-1px); box-shadow: 0 8px 18px rgba(0,0,0,0.18); }
- 
+.copy-btn:hover { background: var(--accent); color: white; border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(124,58,237,0.35); }
+
 /* PASTE AREA */
 .paste-area {
   width: 100%;
   min-height: 120px;
-  background: var(--bg);
-  border: 1.5px dashed var(--border);
-  border-radius: 10px;
+  background: rgba(0,0,0,0.3);
+  border: 1.5px dashed rgba(124,58,237,0.3);
+  border-radius: var(--radius-sm);
   padding: 1rem;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text);
   resize: vertical;
   outline: none;
-  transition: border-color 0.2s;
-  line-height: 1.6;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  line-height: 1.7;
 }
-.paste-area:focus { border-color: var(--accent); }
- 
+.paste-area:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.12); }
+.paste-area::placeholder { color: var(--muted); }
+
 .parse-btn {
   margin-top: 0.75rem;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent) 0%, #9333ea 100%);
   color: white;
   border: none;
-  border-radius: 8px;
-  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  padding: 11px 24px;
   font-family: var(--sans);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(227, 93, 57, 0.22);
-  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 8px 24px rgba(124,58,237,0.35);
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
 }
-.parse-btn:hover { background: #c94828; transform: translateY(-1px); box-shadow: 0 12px 24px rgba(227, 93, 57, 0.28); }
+.parse-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.parse-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 32px rgba(124,58,237,0.45); }
+.parse-btn:hover::after { opacity: 1; }
 .parse-btn:active { transform: scale(0.98); }
  
 /* QUARTER DATES */
@@ -165,34 +319,41 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
 .date-field label {
   display: block;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted);
-  margin-bottom: 4px;
-  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .date-field input {
   width: 100%;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-family: var(--mono);
   font-size: 13px;
-  background: var(--bg);
+  background: rgba(0,0,0,0.3);
   color: var(--text);
   outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  color-scheme: dark;
 }
-.date-field input:focus { border-color: var(--accent); }
+.date-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.12); }
 
 /* MANUAL ENTRY */
 .manual-entry {
-  margin-top: 1rem;
-  padding-top: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
   border-top: 1px solid var(--border);
 }
 .manual-title {
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--mono);
 }
 .manual-grid {
   display: grid;
@@ -211,14 +372,19 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
 .manual-field input,
 .manual-field select {
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-family: var(--sans);
   font-size: 13px;
-  background: var(--bg);
+  background: rgba(0,0,0,0.3);
   color: var(--text);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  color-scheme: dark;
 }
+.manual-field input:focus,
+.manual-field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,58,237,0.12); }
 .day-picker {
   display: flex;
   gap: 6px;
@@ -228,34 +394,40 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 7px 8px;
+  padding: 7px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,0.3);
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--text);
+  color: var(--muted);
   cursor: pointer;
+  transition: all 0.2s;
 }
+.day-picker label:hover { border-color: var(--accent); color: #a78bfa; background: rgba(124,58,237,0.1); }
+.day-picker input[type=checkbox]:checked + * { color: #a78bfa; }
 .manual-actions {
   display: flex;
   gap: 8px;
   margin-top: 0.75rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 .syllabus-box {
-  margin-top: 1rem;
-  background: #fffaf2;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1rem;
+  margin-top: 1.25rem;
+  background: rgba(6,182,212,0.04);
+  border: 1px solid rgba(6,182,212,0.15);
+  border-radius: var(--radius-sm);
+  padding: 1.25rem;
 }
 .syllabus-actions {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  margin-top: 0.75rem;
 }
+.syllabus-actions input[type=file] { color: var(--muted); font-size: 12px; }
 .syllabus-results {
   margin-top: 0.75rem;
   display: flex;
@@ -265,73 +437,73 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
 .candidate-item {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  background: var(--surface);
+  background: rgba(0,0,0,0.3);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.7rem 0.8rem;
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  animation: fadeUp 0.3s ease both;
 }
-.candidate-title { font-size: 12px; font-weight: 600; }
-.candidate-detail { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+.candidate-title { font-size: 12px; font-weight: 600; color: var(--text); }
+.candidate-detail { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
 .parse-btn.secondary {
-  background: var(--blue-light);
-  color: var(--blue);
-  border: 1px solid #b0c4e8;
+  background: rgba(6,182,212,0.1);
+  color: var(--accent2);
+  border: 1px solid rgba(6,182,212,0.25);
+  box-shadow: none;
 }
-.parse-btn.secondary:hover { background: #cddaf5; }
-@media (max-width: 820px) {
-  .manual-grid { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 560px) {
-  .manual-grid { grid-template-columns: 1fr; }
-}
- 
+.parse-btn.secondary:hover { background: rgba(6,182,212,0.2); border-color: var(--accent2); box-shadow: 0 6px 20px rgba(6,182,212,0.2); }
+@media (max-width: 820px) { .manual-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .manual-grid { grid-template-columns: 1fr; } }
 /* PREVIEW */
 #preview-section { display: none; }
 .preview-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
 }
-.preview-title { font-size: 16px; font-weight: 600; }
+.preview-title { font-size: 18px; font-weight: 700; }
 .event-count {
   font-family: var(--mono);
   font-size: 11px;
   background: var(--green-light);
   color: var(--green);
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 99px;
+  border: 1px solid rgba(16,185,129,0.2);
 }
- 
+
 /* CALENDAR PREVIEW */
 .cal-grid {
   display: grid;
   grid-template-columns: 48px repeat(5, 1fr);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   overflow: hidden;
-  background: var(--surface);
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(8px);
 }
 .cal-header {
-  background: var(--text);
-  color: var(--bg);
-  padding: 8px 4px;
+  background: rgba(124,58,237,0.15);
+  color: var(--muted);
+  padding: 10px 4px;
   text-align: center;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--border);
 }
-.cal-header.time-col { background: var(--text); }
+.cal-header.time-col { background: transparent; }
 .time-axis {
   border-right: 1px solid var(--border);
-  background: var(--surface);
+  background: transparent;
 }
 .time-label {
   font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted);
+  font-size: 9px;
+  color: rgba(139,138,170,0.5);
   padding: 0 6px;
   text-align: right;
   height: 40px;
@@ -339,128 +511,119 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
   align-items: flex-start;
   padding-top: 2px;
   border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .day-column {
   position: relative;
   border-right: 1px solid var(--border);
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent 39px,
-      var(--border) 39px,
-      var(--border) 40px
-    );
+  background: repeating-linear-gradient(to bottom, transparent 0, transparent 39px, rgba(255,255,255,0.03) 39px, rgba(255,255,255,0.03) 40px);
 }
 .day-column:last-child { border-right: none; }
-.day-col {
-  position: relative;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-.hour-row {
-  height: 40px;
-  border-bottom: 1px solid var(--border);
-}
-.hour-row.half { border-bottom: 1px dashed #eee; height: 20px; }
- 
 .cal-event {
   position: absolute;
   left: 2px; right: 2px;
-  border-radius: 5px;
-  padding: 3px 5px;
+  border-radius: 6px;
+  padding: 4px 6px;
   font-size: 9px;
   font-weight: 600;
   line-height: 1.3;
   overflow: hidden;
   cursor: pointer;
   z-index: 2;
-  transition: opacity 0.15s;
+  transition: transform 0.15s, box-shadow 0.15s;
+  backdrop-filter: blur(4px);
 }
-.cal-event:hover { opacity: 0.85; }
+.cal-event:hover { transform: scale(1.02); z-index: 10; }
 .cal-event .ev-name { font-size: 9px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal-event .ev-time { font-family: var(--mono); font-size: 8px; opacity: 0.8; }
 .cal-event .ev-loc { font-size: 8px; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
- 
-/* EVENT COLORS */
-.color-dkred { background: #f5c6c6; color: #7a1a1a; border-left: 3px solid #c0392b; }
-.color-ltred { background: #fde8e8; color: #8b2020; border-left: 3px solid #e74c3c; }
-.color-dkgreen { background: #c6e6d0; color: #1a5c30; border-left: 3px solid #27ae60; }
-.color-ltgreen { background: #e2f5e8; color: #1e6b35; border-left: 3px solid #2ecc71; }
-.color-dkblue { background: #c6d8f5; color: #1a2e6b; border-left: 3px solid #2980b9; }
-.color-ltblue { background: #deeaf5; color: #1a3a5c; border-left: 3px solid #3498db; }
-.color-ltbrown { background: #f5e6c6; color: #5c3a1a; border-left: 3px solid #d4874a; }
-.color-gold { background: #faf0c8; color: #6a4a00; border-left: 3px solid #c99700; }
-.color-teal { background: #d9f0ef; color: #115d5a; border-left: 3px solid #1f9a94; }
-.color-violet { background: #ece3fa; color: #4a247a; border-left: 3px solid #8e5ad8; }
-.color-default { background: #e8e8f5; color: #2a2a5c; border-left: 3px solid #7a7aad; }
- 
+
+/* EVENT COLORS — dark-mode glass versions */
+.color-dkred { background: rgba(192,57,43,0.3); color: #fca5a5; border-left: 3px solid #ef4444; }
+.color-ltred { background: rgba(231,76,60,0.2); color: #fca5a5; border-left: 3px solid #f87171; }
+.color-dkgreen { background: rgba(39,174,96,0.25); color: #6ee7b7; border-left: 3px solid #10b981; }
+.color-ltgreen { background: rgba(46,204,113,0.18); color: #6ee7b7; border-left: 3px solid #34d399; }
+.color-dkblue { background: rgba(41,128,185,0.28); color: #93c5fd; border-left: 3px solid #3b82f6; }
+.color-ltblue { background: rgba(52,152,219,0.2); color: #93c5fd; border-left: 3px solid #60a5fa; }
+.color-ltbrown { background: rgba(212,135,74,0.22); color: #fcd34d; border-left: 3px solid #f59e0b; }
+.color-gold { background: rgba(201,151,0,0.22); color: #fde68a; border-left: 3px solid #f59e0b; }
+.color-teal { background: rgba(31,154,148,0.25); color: #5eead4; border-left: 3px solid #14b8a6; }
+.color-violet { background: rgba(142,90,216,0.28); color: #c4b5fd; border-left: 3px solid #8b5cf6; }
+.color-default { background: rgba(124,58,237,0.2); color: #c4b5fd; border-left: 3px solid #7c3aed; }
+
 /* COURSE LIST */
-.course-list { margin-top: 1rem; display: flex; flex-direction: column; gap: 8px; }
+.course-list { margin-top: 1.25rem; display: flex; flex-direction: column; gap: 10px; }
 .course-item {
-  background: var(--bg);
+  background: rgba(0,0,0,0.25);
   border: 1px solid var(--border);
-  border-left-width: 4px;
-  border-radius: 10px;
-  padding: 0.75rem 1rem;
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 8px;
+  transition: background 0.2s;
 }
-.course-item-name { font-size: 13px; font-weight: 600; }
-.course-item-detail { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
-.course-item-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.course-item:hover { background: rgba(255,255,255,0.04); }
+.course-item-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.course-item-detail { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.6; }
+.course-item-actions { display: flex; align-items: center; gap: 8px; }
 .course-badge {
   font-family: var(--mono);
   font-size: 10px;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 99px;
   white-space: nowrap;
 }
 .delete-course-btn {
-  width: 28px;
-  height: 28px;
-  border: 1px solid #e3b2a3;
+  width: 28px; height: 28px;
+  border: 1px solid rgba(239,68,68,0.3);
   border-radius: 8px;
-  background: #f8e5df;
-  color: #9b3519;
+  background: rgba(239,68,68,0.1);
+  color: #f87171;
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
+  transition: all 0.2s;
 }
-.delete-course-btn:hover { background: #f1d0c4; }
+.delete-course-btn:hover { background: rgba(239,68,68,0.25); border-color: rgba(239,68,68,0.5); }
  
 /* EXPORT */
 .export-row {
   display: flex;
-  gap: 10px;
-  margin-top: 1rem;
+  gap: 12px;
+  margin-top: 1.25rem;
   flex-wrap: wrap;
 }
 .export-btn {
   flex: 1;
   min-width: 160px;
-  padding: 12px 20px;
-  border-radius: 10px;
+  padding: 14px 20px;
+  border-radius: var(--radius-sm);
   font-family: var(--sans);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   border: none;
-  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
 }
 .export-btn:active { transform: scale(0.98); }
-.export-btn.primary { background: var(--accent); color: white; }
-.export-btn.primary:hover { background: #c94828; transform: translateY(-1px); box-shadow: 0 12px 24px rgba(227, 93, 57, 0.24); }
-.export-btn.secondary { background: var(--blue-light); color: var(--blue); border: 1px solid #b0c4e8; }
-.export-btn.secondary:hover { background: #cddaf5; transform: translateY(-1px); box-shadow: 0 10px 20px rgba(30, 79, 163, 0.14); }
- 
+.export-btn.primary {
+  background: linear-gradient(135deg, var(--accent), #9333ea);
+  color: white;
+  box-shadow: 0 8px 24px rgba(124,58,237,0.35);
+}
+.export-btn.primary:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(124,58,237,0.5); }
+.export-btn.secondary {
+  background: rgba(6,182,212,0.1);
+  color: var(--accent2);
+  border: 1px solid rgba(6,182,212,0.25);
+}
+.export-btn.secondary:hover { background: rgba(6,182,212,0.2); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(6,182,212,0.2); }
+
 /* INSTRUCTIONS */
 .instruction-steps { margin-top: 0.75rem; counter-reset: step; }
 .instruction-step {
@@ -469,63 +632,224 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
   margin-bottom: 8px;
   font-size: 13px;
   color: var(--muted);
-  line-height: 1.5;
+  line-height: 1.6;
 }
 .instruction-step::before {
   counter-increment: step;
   content: counter(step);
   font-family: var(--mono);
   font-size: 10px;
-  background: var(--border);
-  width: 20px; height: 20px;
+  background: rgba(124,58,237,0.15);
+  border: 1px solid rgba(124,58,237,0.25);
+  width: 22px; height: 22px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  color: var(--text);
+  color: #a78bfa;
   margin-top: 1px;
 }
- 
+
+/* FINALS DISPLAY */
+.finals-section {
+  margin-top: 1.25rem;
+  padding: 1.25rem;
+  background: rgba(245,158,11,0.05);
+  border: 1px solid rgba(245,158,11,0.2);
+  border-radius: var(--radius-sm);
+}
+.finals-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.finals-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.final-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.6rem 0.8rem;
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+  border: 1px solid rgba(245,158,11,0.15);
+}
+.final-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(245,158,11,0.5);
+}
+.final-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.final-detail { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 1px; }
+
 /* NOTICE */
 .notice {
-  background: var(--gold-light);
-  border: 1px solid #e0c870;
-  border-radius: 10px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.2);
+  border-radius: var(--radius-sm);
   padding: 0.75rem 1rem;
   font-size: 12px;
   color: var(--gold);
-  line-height: 1.5;
+  line-height: 1.6;
   margin-top: 0.75rem;
 }
- 
+
+/* GEMINI API KEY INPUT */
+.api-key-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.api-key-row input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid rgba(6,182,212,0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,0.4);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.api-key-row input:focus { border-color: var(--accent2); }
+.api-key-row input::placeholder { color: var(--muted); }
+
+/* SPINNER */
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid rgba(124,58,237,0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
 /* TOOLTIP */
 .tooltip {
   position: fixed;
-  background: var(--text);
-  color: var(--bg);
+  background: rgba(8,9,15,0.95);
+  color: var(--text);
   font-family: var(--mono);
   font-size: 11px;
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
   pointer-events: none;
-  z-index: 100;
+  z-index: 1000;
   opacity: 0;
   transition: opacity 0.15s;
-  max-width: 200px;
-  line-height: 1.4;
+  max-width: 220px;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* ── CUSTOM CURSOR ── */
+* { cursor: none !important; }
+a, button, label, input, select, textarea, [onclick] { cursor: none !important; }
+#cursor-dot {
+  position: fixed;
+  width: 10px; height: 10px;
+  background: #a78bfa;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99999;
+  transform: translate(-50%, -50%);
+  transition: width 0.12s, height 0.12s, background 0.12s, box-shadow 0.12s;
+  box-shadow: 0 0 8px 2px rgba(167,139,250,0.7), 0 0 20px 4px rgba(124,58,237,0.35);
+  mix-blend-mode: screen;
+}
+#cursor-ring {
+  position: fixed;
+  width: 36px; height: 36px;
+  border: 1.5px solid rgba(167,139,250,0.45);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99998;
+  transform: translate(-50%, -50%);
+  transition: width 0.18s ease, height 0.18s ease, border-color 0.18s, opacity 0.18s, box-shadow 0.18s;
+  box-shadow: 0 0 10px rgba(124,58,237,0.2);
+}
+#cursor-dot.clicking {
+  width: 6px; height: 6px;
+  background: #38bdf8;
+  box-shadow: 0 0 14px 4px rgba(56,189,248,0.8), 0 0 30px 8px rgba(6,182,212,0.4);
+}
+#cursor-ring.clicking {
+  width: 50px; height: 50px;
+  border-color: rgba(56,189,248,0.6);
+  box-shadow: 0 0 20px rgba(6,182,212,0.3);
+  opacity: 0.5;
+}
+.cursor-trail {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99997;
+  transform: translate(-50%, -50%);
+  animation: trail-fade 0.5s ease forwards;
+}
+@keyframes trail-fade {
+  0% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
+}
+
+/* ── CLICK PARTICLES ── */
+.click-particle {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99996;
+  transform: translate(-50%, -50%);
+  animation: particle-burst 0.6s ease forwards;
+}
+@keyframes particle-burst {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0); }
 }
 </style>
 </head>
 <body>
- 
+
+<div class="bg-orb bg-orb-1"></div>
+<div class="bg-orb bg-orb-2"></div>
+<div class="bg-orb bg-orb-3"></div>
+
 <header>
   <div>
-    <div class="logo">Aggie <span>Scheduler</span></div>
-    <div class="logo-sub">UC DAVIS COURSES, FINALS, MIDTERMS → CALENDAR</div>
+    <div class="logo">Aggie Scheduler</div>
+    <div class="logo-sub">UC DAVIS · COURSES · FINALS · MIDTERMS → CALENDAR</div>
   </div>
+  <div class="header-badge">Spring 2026</div>
 </header>
- 
+
 <main>
- 
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1 class="hero-title">Your schedule,<br>in your calendar.</h1>
+    <p class="hero-sub">Import UC Davis courses, finals, and midterms straight into Google Calendar — in under 2 minutes.</p>
+    <div class="hero-pills">
+      <span class="hero-pill">✦ No login required</span>
+      <span class="hero-pill">✦ 100% local & private</span>
+      <span class="hero-pill">✦ AI syllabus scanning</span>
+      <span class="hero-pill">✦ Instant .ics export</span>
+    </div>
+  </div>
+
   <!-- STEP 1: QUARTER DATES -->
   <div class="step-card">
     <div class="step-header">
@@ -534,11 +858,11 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
     </div>
     <div class="date-row">
       <div class="date-field">
-        <label>QUARTER START</label>
+        <label>Quarter Start</label>
         <input type="date" id="qstart" value="2026-03-31">
       </div>
       <div class="date-field">
-        <label>QUARTER END</label>
+        <label>Quarter End</label>
         <input type="date" id="qend" value="2026-06-12">
       </div>
     </div>
@@ -642,8 +966,17 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
           <button class="parse-btn secondary" onclick="addManualExam()">Add Midterm/Exam</button>
         </div>
         <div class="syllabus-actions">
-          <input id="syllabus-file" type="file" accept=".pdf,.txt,.text">
-          <button class="parse-btn secondary" onclick="scanSyllabus()">Find Dates from Syllabus</button>
+          <div class="api-key-row">
+            <input id="gemini-api-key" type="password" placeholder="Gemini API key (optional — for smarter AI scanning)" autocomplete="off">
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" style="font-family:var(--mono);font-size:10px;color:var(--accent2);white-space:nowrap;">Get key ↗</a>
+          </div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:0.4rem;">
+            🔒 Your key is used only in your browser to call Google’s API directly — it’s never stored or sent to any server.
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input id="syllabus-file" type="file" accept=".pdf,.txt,.text">
+            <button class="parse-btn secondary" id="scan-btn" onclick="scanSyllabus()">&#x2728; Scan Syllabus for Dates</button>
+          </div>
         </div>
         <div class="syllabus-results" id="syllabus-results"></div>
       </div>
@@ -656,38 +989,47 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
       <div class="step-num done" id="num4">✓</div>
       <div class="step-title">Preview &amp; Export</div>
     </div>
- 
+
     <div class="preview-header">
       <div class="preview-title">Your Schedule</div>
       <div class="event-count" id="event-count">0 sessions</div>
     </div>
- 
+
     <!-- CALENDAR GRID -->
     <div class="cal-grid" id="cal-grid"></div>
- 
+
+    <!-- FINALS DISPLAY -->
+    <div class="finals-section" id="finals-section" style="display:none">
+      <div class="finals-title">⚡ Detected Finals &amp; Exams</div>
+      <div class="finals-grid" id="finals-grid"></div>
+    </div>
+
     <!-- COURSE LIST -->
     <div class="course-list" id="course-list"></div>
- 
+
     <div class="export-row">
-      <button class="export-btn primary" onclick="exportICS()">⬇ Download .ics for Google Calendar</button>
+      <button class="export-btn primary" onclick="exportICS()">↓ Download .ics for Google Calendar</button>
       <button class="export-btn secondary" onclick="copyICS()">Copy ICS to clipboard</button>
     </div>
- 
-    <div style="margin-top:1rem;">
-      <div style="font-size:12px;font-weight:600;margin-bottom:0.5rem;color:var(--muted);">HOW TO IMPORT INTO GOOGLE CALENDAR</div>
+
+    <div style="margin-top:1.25rem;">
+      <div style="font-family:var(--mono);font-size:10px;font-weight:600;margin-bottom:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;">How to import into Google Calendar</div>
       <div class="instruction-steps">
         <div class="instruction-step">Download the .ics file above</div>
-        <div class="instruction-step">Go to <strong style="color:var(--text)">calendar.google.com</strong> → click the gear icon → Settings</div>
+        <div class="instruction-step">Go to <a href="https://calendar.google.com" target="_blank" style="color:#a78bfa;font-weight:600;text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.4);">calendar.google.com</a> → click the gear icon → Settings</div>
         <div class="instruction-step">Left sidebar → <strong style="color:var(--text)">Import &amp; Export</strong> → Import</div>
         <div class="instruction-step">Select the downloaded file → Import. Done!</div>
       </div>
     </div>
   </div>
- 
+
 </main>
  
 <div class="tooltip" id="tooltip"></div>
- 
+<div id="cursor-dot"></div>
+<div id="cursor-ring"></div>
+<canvas id="particle-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:99995;"></canvas>
+
 <script>
 // ─── SCRAPER SCRIPT (runs on Schedule Builder list view) ─────────────────────
 const SCRAPER = `(function(){
@@ -961,12 +1303,30 @@ const SCRAPER = `(function(){
 })();`;
  
 document.getElementById('script-display').textContent = SCRAPER;
+
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.style.position = 'fixed';
+  area.style.left = '-9999px';
+  document.body.appendChild(area);
+  area.focus();
+  area.select();
+  const ok = document.execCommand('copy');
+  area.remove();
+  return ok ? Promise.resolve() : Promise.reject(new Error('Clipboard copy failed'));
+}
  
 function copyScript() {
-  navigator.clipboard.writeText(SCRAPER).then(() => {
+  copyText(SCRAPER).then(() => {
     const btn = document.querySelector('.copy-btn');
     btn.textContent = 'Copied!';
     setTimeout(() => btn.textContent = 'Copy', 2000);
+  }).catch(err => {
+    alert('Could not copy automatically. Select the script text and copy it manually.\n\n' + err.message);
   });
 }
  
@@ -1239,17 +1599,40 @@ function parseLooseTime(time, ap) {
   return `${pad(h)}:${pad(m)}`;
 }
 
+async function scanSyllabusWithGemini(text, apiKey) {
+  const currentYear = new Date().getFullYear();
+  const prompt = `You are an academic calendar assistant. Extract ALL midterm exams and final exams from this syllabus text. Return ONLY a JSON array (no markdown, no explanation) with objects having these fields: title (e.g. "Midterm 1", "Final Exam"), date (YYYY-MM-DD, assume year ${currentYear} if not specified), start (HH:MM 24h), end (HH:MM 24h, default 1h after start), line (short excerpt from syllabus confirming this). If no time found, use 12:00 and 13:00. Return [] if none found.\n\nSYLLABUS:\n${text.slice(0, 12000)}`;
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+  });
+  if(!resp.ok) throw new Error(`Gemini API error: ${resp.status}`);
+  const data = await resp.json();
+  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+  const clean = raw.replace(/```json\n?|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
 async function scanSyllabus() {
   const file = document.getElementById('syllabus-file').files[0];
   const course = document.getElementById('exam-course').value.trim();
+  const apiKey = document.getElementById('gemini-api-key').value.trim();
   const out = document.getElementById('syllabus-results');
+  const btn = document.getElementById('scan-btn');
   if(!file) { alert('Choose a PDF or text syllabus first.'); return; }
-  out.innerHTML = '<div class="candidate-item"><div class="candidate-title">Scanning syllabus...</div></div>';
+  out.innerHTML = `<div class="candidate-item"><div class="candidate-title"><span class="spinner"></span>${apiKey ? 'Asking Gemini AI...' : 'Scanning syllabus...'}</div></div>`;
+  btn.disabled = true;
   try {
     const text = await readSyllabusText(file);
-    const candidates = extractSyllabusCandidates(text);
+    let candidates;
+    if(apiKey) {
+      candidates = await scanSyllabusWithGemini(text, apiKey);
+    } else {
+      candidates = extractSyllabusCandidates(text);
+    }
     if(!candidates.length) {
-      out.innerHTML = '<div class="candidate-item"><div><div class="candidate-title">No likely midterm/final dates found</div><div class="candidate-detail">You can still add the date manually above.</div></div></div>';
+      out.innerHTML = '<div class="candidate-item"><div><div class="candidate-title">No midterm/final dates found</div><div class="candidate-detail">Try adding a Gemini API key above for smarter detection, or add dates manually.</div></div></div>';
       return;
     }
     out.innerHTML = '';
@@ -1258,8 +1641,8 @@ async function scanSyllabus() {
       item.className = 'candidate-item';
       item.innerHTML = `
         <div>
-          <div class="candidate-title">${candidate.title} · ${fmtDate(candidate.date)} · ${candidate.start}-${candidate.end}</div>
-          <div class="candidate-detail">${candidate.line}</div>
+          <div class="candidate-title">${candidate.title} &middot; ${fmtDate(candidate.date)} &middot; ${candidate.start}&ndash;${candidate.end}</div>
+          <div class="candidate-detail">${candidate.line || ''}</div>
         </div>
         <button class="parse-btn secondary" type="button">Add</button>
       `;
@@ -1267,7 +1650,9 @@ async function scanSyllabus() {
       out.appendChild(item);
     });
   } catch(err) {
-    out.innerHTML = `<div class="candidate-item"><div><div class="candidate-title">Could not read syllabus</div><div class="candidate-detail">${err.message}</div></div></div>`;
+    out.innerHTML = `<div class="candidate-item"><div><div class="candidate-title">Error scanning syllabus</div><div class="candidate-detail">${err.message}</div></div></div>`;
+  } finally {
+    btn.disabled = false;
   }
 }
  
@@ -1277,7 +1662,20 @@ function renderPreview(events) {
   const oneOffEvents = scheduledEvents.filter(ev => ev.oneOff);
   const unscheduledEvents = events.filter(ev => ev.unscheduled);
   document.getElementById('event-count').textContent = weeklyEvents.length + ' class sessions' + (oneOffEvents.length ? ' · ' + oneOffEvents.length + ' exams' : '') + (unscheduledEvents.length ? ' · ' + unscheduledEvents.length + ' TBA' : '');
- 
+
+  // ── FINALS PANEL ──
+  const finals = oneOffEvents.filter(ev => /final|midterm|exam/i.test(ev.type || ev.name || ''));
+  const finalsSection = document.getElementById('finals-section');
+  const finalsGrid = document.getElementById('finals-grid');
+  if(finals.length) {
+    finalsSection.style.display = 'block';
+    finalsGrid.innerHTML = finals.map(ev => {
+      const end = addMin(ev.startH, ev.startMin, ev.durMin);
+      return `<div class="final-item"><div class="final-dot"></div><div><div class="final-name">${ev.name}</div><div class="final-detail">${fmtDate(ev.date)} &middot; ${fmt12(ev.startH, ev.startMin)}&ndash;${fmt12(end.h, end.m)}${ev.location ? ' &middot; ' + ev.location : ''}</div></div></div>`;
+    }).join('');
+  } else {
+    finalsSection.style.display = 'none';
+  }
   // ── CALENDAR GRID ──
   const START_HOUR = 7;
   const END_HOUR = 23;
@@ -1452,12 +1850,49 @@ function exportICS() {
  
 function copyICS() {
   if(!parsedEvents.filter(isScheduledEvent).length) { alert('No scheduled events to export. TBA-only classes stay visible in the app but are not added to the calendar file.'); return; }
-  navigator.clipboard.writeText(buildICS()).then(() => {
+  copyText(buildICS()).then(() => {
     const btn = document.querySelectorAll('.export-btn')[1];
     btn.textContent = 'Copied!';
     setTimeout(() => btn.textContent = 'Copy ICS to clipboard', 2000);
+  }).catch(err => {
+    alert('Could not copy automatically. Try downloading the .ics file instead.\n\n' + err.message);
   });
 }
+
+
+// CUSTOM CURSOR
+(function() {
+  var dot = document.getElementById('cursor-dot');
+  var ring = document.getElementById('cursor-ring');
+  var mx=-100,my=-100,rx=-100,ry=-100,tt=0;
+  var C=['#a78bfa','#38bdf8','#f472b6','#34d399','#fbbf24'];
+  document.addEventListener('mousemove',function(e){
+    mx=e.clientX;my=e.clientY;
+    dot.style.left=mx+'px';dot.style.top=my+'px';
+    if(++tt%3===0){var t=document.createElement('div');t.className='cursor-trail';var sz=3+Math.random()*5;t.style.cssText='left:'+mx+'px;top:'+my+'px;width:'+sz+'px;height:'+sz+'px;background:'+C[Math.floor(Math.random()*5)]+';';document.body.appendChild(t);setTimeout(function(){t.remove();},500);}
+  });
+  (function loop(){rx+=(mx-rx)*0.12;ry+=(my-ry)*0.12;ring.style.left=rx+'px';ring.style.top=ry+'px';requestAnimationFrame(loop);})();
+  document.addEventListener('mousedown',function(){dot.classList.add('clicking');ring.classList.add('clicking');});
+  document.addEventListener('mouseup',function(){dot.classList.remove('clicking');ring.classList.remove('clicking');});
+  var S='button,a,input,select,textarea,label';
+  document.addEventListener('mouseover',function(e){if(e.target.closest&&e.target.closest(S)){dot.style.width='14px';dot.style.height='14px';dot.style.background='#38bdf8';dot.style.boxShadow='0 0 16px 6px rgba(56,189,248,0.8)';}});
+  document.addEventListener('mouseout',function(e){if(e.target.closest&&e.target.closest(S)){dot.style.width='';dot.style.height='';dot.style.background='';dot.style.boxShadow='';}});
+})();
+
+// CLICK PARTICLES
+(function() {
+  var P=['#a78bfa','#38bdf8','#f472b6','#34d399','#fbbf24','#c4b5fd','#7dd3fc'];
+  document.addEventListener('click',function(e){
+    var n=12+Math.floor(Math.random()*8);
+    for(var i=0;i<n;i++){
+      var el=document.createElement('div');el.className='click-particle';
+      var a=(Math.PI*2/n)*i+Math.random()*0.4;var d=40+Math.random()*60;var s=3+Math.random()*5;
+      var c=P[Math.floor(Math.random()*P.length)];
+      el.style.cssText='left:'+e.clientX+'px;top:'+e.clientY+'px;width:'+s+'px;height:'+s+'px;background:'+c+';box-shadow:0 0 8px 2px '+c+';--tx:'+(Math.cos(a)*d)+'px;--ty:'+(Math.sin(a)*d)+'px;animation-duration:'+(0.4+Math.random()*0.35)+'s';
+      document.body.appendChild(el);setTimeout(function(){el.remove();},900);
+    }
+  });
+})();
 </script>
 </body>
 </html>
