@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aggie Calendar Export</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f3ee;
+  --surface: #ffffff;
+  --border: #e2ddd5;
+  --text: #1a1916;
+  --muted: #8c8880;
+  --accent: #c8522a;
+  --accent-light: #f5e8e2;
+  --green: #2a7a4b;
+  --green-light: #e2f0e8;
+  --blue: #1e4fa3;
+  --blue-light: #e3ecfb;
+  --gold: #b8860b;
+  --gold-light: #faf3d8;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'Syne', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+/* HEADER */
+header {
+  background: var(--text);
+  color: var(--bg);
+  padding: 1.5rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.logo { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+.logo span { color: var(--accent); }
+.logo-sub { font-family: var(--mono); font-size: 10px; color: #888; letter-spacing: 0.1em; margin-top: 2px; }
+
+/* MAIN LAYOUT */
+main { max-width: 960px; margin: 0 auto; padding: 2rem; }
+
+/* STEP CARDS */
+.step-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 1rem;
+}
+.step-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--text);
+  color: var(--bg);
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.step-num.done { background: var(--green); }
+.step-title { font-size: 16px; font-weight: 600; }
+.step-desc { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 1rem; }
+
+/* CODE BLOCK */
+.code-wrap {
+  background: var(--text);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  position: relative;
+}
+.code-wrap pre {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #a8e6cf;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.copy-btn {
+  position: absolute;
+  top: 8px; right: 8px;
+  background: #333;
+  color: #ccc;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.copy-btn:hover { background: var(--accent); color: white; }
+
+/* PASTE AREA */
+.paste-area {
+  width: 100%;
+  min-height: 120px;
+  background: var(--bg);
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+  line-height: 1.6;
+}
+.paste-area:focus { border-color: var(--accent); }
+
+.parse-btn {
+  margin-top: 0.75rem;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.parse-btn:hover { background: #a8421d; }
+.parse-btn:active { transform: scale(0.98); }
+
+/* QUARTER DATES */
+.date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 1rem;
+}
+.date-field label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+  letter-spacing: 0.05em;
+}
+.date-field input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
+.date-field input:focus { border-color: var(--accent); }
+
+/* PREVIEW */
+#preview-section { display: none; }
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.preview-title { font-size: 16px; font-weight: 600; }
+.event-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--green-light);
+  color: var(--green);
+  padding: 4px 10px;
+  border-radius: 99px;
+}
+
+/* CALENDAR PREVIEW */
+.cal-grid {
+  display: grid;
+  grid-template-columns: 48px repeat(5, 1fr);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.cal-header {
+  background: var(--text);
+  color: var(--bg);
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+.cal-header.time-col { background: var(--text); }
+.time-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  padding: 0 6px;
+  text-align: right;
+  height: 40px;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.day-col {
+  position: relative;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.hour-row {
+  height: 40px;
+  border-bottom: 1px solid var(--border);
+}
+.hour-row.half { border-bottom: 1px dashed #eee; height: 20px; }
+
+.cal-event {
+  position: absolute;
+  left: 2px; right: 2px;
+  border-radius: 5px;
+  padding: 3px 5px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  cursor: pointer;
+  z-index: 2;
+  transition: opacity 0.15s;
+}
+.cal-event:hover { opacity: 0.85; }
+.cal-event .ev-name { font-size: 9px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-event .ev-time { font-family: var(--mono); font-size: 8px; opacity: 0.8; }
+.cal-event .ev-loc { font-size: 8px; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* EVENT COLORS */
+.color-dkred { background: #f5c6c6; color: #7a1a1a; border-left: 3px solid #c0392b; }
+.color-ltred { background: #fde8e8; color: #8b2020; border-left: 3px solid #e74c3c; }
+.color-dkgreen { background: #c6e6d0; color: #1a5c30; border-left: 3px solid #27ae60; }
+.color-ltgreen { background: #e2f5e8; color: #1e6b35; border-left: 3px solid #2ecc71; }
+.color-dkblue { background: #c6d8f5; color: #1a2e6b; border-left: 3px solid #2980b9; }
+.color-ltblue { background: #deeaf5; color: #1a3a5c; border-left: 3px solid #3498db; }
+.color-ltbrown { background: #f5e6c6; color: #5c3a1a; border-left: 3px solid #d4874a; }
+.color-default { background: #e8e8f5; color: #2a2a5c; border-left: 3px solid #7a7aad; }
+
+/* COURSE LIST */
+.course-list { margin-top: 1rem; display: flex; flex-direction: column; gap: 8px; }
+.course-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+.course-item-name { font-size: 13px; font-weight: 600; }
+.course-item-detail { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
+.course-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+/* EXPORT */
+.export-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+.export-btn {
+  flex: 1;
+  min-width: 160px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.1s, background 0.15s;
+}
+.export-btn:active { transform: scale(0.98); }
+.export-btn.primary { background: var(--accent); color: white; }
+.export-btn.primary:hover { background: #a8421d; }
+.export-btn.secondary { background: var(--blue-light); color: var(--blue); border: 1px solid #b0c4e8; }
+.export-btn.secondary:hover { background: #cddaf5; }
+
+/* INSTRUCTIONS */
+.instruction-steps { margin-top: 0.75rem; counter-reset: step; }
+.instruction-step {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.instruction-step::before {
+  counter-increment: step;
+  content: counter(step);
+  font-family: var(--mono);
+  font-size: 10px;
+  background: var(--border);
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  color: var(--text);
+  margin-top: 1px;
+}
+
+/* NOTICE */
+.notice {
+  background: var(--gold-light);
+  border: 1px solid #e0c870;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  font-size: 12px;
+  color: var(--gold);
+  line-height: 1.5;
+  margin-top: 0.75rem;
+}
+
+/* TOOLTIP */
+.tooltip {
+  position: fixed;
+  background: var(--text);
+  color: var(--bg);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.15s;
+  max-width: 200px;
+  line-height: 1.4;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">Aggie <span>Cal</span> Export</div>
+    <div class="logo-sub">UC DAVIS SCHEDULE BUILDER → GOOGLE CALENDAR</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- STEP 1: QUARTER DATES -->
+  <div class="step-card">
+    <div class="step-header">
+      <div class="step-num" id="num1">1</div>
+      <div class="step-title">Set your quarter dates</div>
+    </div>
+    <div class="date-row">
+      <div class="date-field">
+        <label>QUARTER START</label>
+        <input type="date" id="qstart" value="2026-03-31">
+      </div>
+      <div class="date-field">
+        <label>QUARTER END</label>
+        <input type="date" id="qend" value="2026-06-12">
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: SCRAPER -->
+  <div class="step-card">
+    <div class="step-header">
+      <div class="step-num" id="num2">2</div>
+      <div class="step-title">Run this on Schedule Builder</div>
+    </div>
+    <p class="step-desc">Go to Schedule Builder → switch to <strong>Calendar view</strong> → open the browser console (F12 → Console) → paste and run this:</p>
+    <div class="code-wrap">
+      <button class="copy-btn" onclick="copyScript()">Copy</button>
+      <pre id="script-display">Loading...</pre>
+    </div>
+  </div>
+
+  <!-- STEP 3: PASTE OUTPUT -->
+  <div class="step-card">
+    <div class="step-header">
+      <div class="step-num" id="num3">3</div>
+      <div class="step-title">Paste the output here</div>
+    </div>
+    <p class="step-desc">The script will print a JSON block in the console starting with <code style="font-family:var(--mono);font-size:12px;background:var(--bg);padding:1px 4px;border-radius:3px;">AGGIE_CAL:</code> — copy everything after that and paste below.</p>
+    <textarea class="paste-area" id="json-input" placeholder='Paste JSON output here, e.g. [{"name":"EEC 130B 001 (LEC)","day":"M","startH":16,"startMin":0,"durMin":90,"color":"dkred","location":"Everson Hall 176"}]'></textarea>
+    <button class="parse-btn" onclick="parseAndPreview()">Preview My Schedule →</button>
+    <div class="notice">💡 The scraper only reads data already visible on your screen — nothing is sent anywhere. Everything runs locally in your browser.</div>
+  </div>
+
+  <!-- STEP 4: PREVIEW + EXPORT -->
+  <div class="step-card" id="preview-section">
+    <div class="step-header">
+      <div class="step-num done" id="num4">✓</div>
+      <div class="step-title">Preview &amp; Export</div>
+    </div>
+
+    <div class="preview-header">
+      <div class="preview-title">Your Schedule</div>
+      <div class="event-count" id="event-count">0 sessions</div>
+    </div>
+
+    <!-- CALENDAR GRID -->
+    <div class="cal-grid" id="cal-grid"></div>
+
+    <!-- COURSE LIST -->
+    <div class="course-list" id="course-list"></div>
+
+    <div class="export-row">
+      <button class="export-btn primary" onclick="exportICS()">⬇ Download .ics for Google Calendar</button>
+      <button class="export-btn secondary" onclick="copyICS()">Copy ICS to clipboard</button>
+    </div>
+
+    <div style="margin-top:1rem;">
+      <div style="font-size:12px;font-weight:600;margin-bottom:0.5rem;color:var(--muted);">HOW TO IMPORT INTO GOOGLE CALENDAR</div>
+      <div class="instruction-steps">
+        <div class="instruction-step">Download the .ics file above</div>
+        <div class="instruction-step">Go to <strong style="color:var(--text)">calendar.google.com</strong> → click the gear icon → Settings</div>
+        <div class="instruction-step">Left sidebar → <strong style="color:var(--text)">Import &amp; Export</strong> → Import</div>
+        <div class="instruction-step">Select the downloaded file → Import. Done!</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ─── SCRAPER SCRIPT (runs on Schedule Builder) ───────────────────────────────
+const SCRAPER = `(function(){
+  var events=[];
+  var seen={};
+  document.querySelectorAll('.long-event').forEach(function(e){
+    var classes=Array.from(e.classList);
+    var idCls=classes.find(function(c){return c.match(/^\\d{6}_/);});
+    if(!idCls)return;
+    var key=idCls;
+    if(seen[key])return;
+    seen[key]=true;
+    var m=idCls.match(/^(\\d{6})_(\\d+)_(\\d+)_([MTWRF])@/);
+    if(!m)return;
+    var day=m[4];
+    var par=e.parentElement;
+    var parClasses=Array.from(par.classList);
+    var zhCls=parClasses.find(function(c){return c.startsWith('zh');});
+    var isHalf=parClasses.includes('half');
+    var startH=zhCls?parseInt(zhCls.replace('zh','')):(isHalf?null:8);
+    var startMin=isHalf?30:0;
+    // if half but no zh, look at previous sibling's zh
+    if(isHalf&&!zhCls){
+      var prev=par.previousElementSibling;
+      while(prev){
+        var ppc=Array.from(prev.classList);
+        var pzh=ppc.find(function(c){return c.startsWith('zh');});
+        if(pzh){startH=parseInt(pzh.replace('zh',''));break;}
+        prev=prev.previousElementSibling;
+      }
+    }
+    if(startH===null)startH=8;
+    var px=e.offsetHeight;
+    var durMin=Math.round(px/0.333*2);
+    // 1px ~ 2min based on: 45px=90min, 99px=198min~3h18m... recalc
+    // Known: zh16 45px = 4pm-5:30pm = 90min => 45px/90min => 0.5px/min
+    durMin=Math.round(px*2);
+    var name=e.textContent.trim().replace(/\\s*\\(Registered\\)\\s*$/,'').trim();
+    var color=classes.find(function(c){return['dkred','ltred','dkgreen','ltgreen','dkblue','ltblue','ltbrown'].includes(c);})||'default';
+    // Try to get location from the list view
+    var loc='';
+    var crn=classes.find(function(c){return c.startsWith('c')&&c.length>3&&!isNaN(c.slice(1));});
+    if(crn){
+      var crn_num=crn.slice(1);
+      document.querySelectorAll('tr').forEach(function(row){
+        var tds=row.querySelectorAll('td');
+        if(tds.length<4)return;
+        var txt=Array.from(tds).map(function(t){return t.textContent.trim();});
+        var hasTime=txt.some(function(t){return/\\d+:\\d+\\s*[AP]M/i.test(t);});
+        if(!hasTime)return;
+        var locCand=txt.filter(function(t,i){
+          return t.length>3&&!/^[MTWRF]+$/.test(t)&&!/\\d+:\\d+/.test(t)&&i>0;
+        });
+        if(locCand.length>0&&!loc)loc=locCand[locCand.length-1];
+      });
+    }
+    events.push({name:name,day:day,startH:startH,startMin:startMin,durMin:durMin,color:color,location:loc});
+  });
+  var out=JSON.stringify(events);
+  console.log('');
+  console.log('%cAGGIE_CAL: Copy everything below this line','color:#ff6b35;font-weight:bold;font-size:14px');
+  console.log(out);
+  console.log('%cAGGIE_CAL: Copy everything above this line','color:#ff6b35;font-weight:bold;font-size:14px');
+  alert('Done! '+events.length+' sessions found.\\n\\nNow copy the JSON text from the console (between the orange lines) and paste it into the Aggie Cal Export app.');
+})();`;
+
+document.getElementById('script-display').textContent = SCRAPER;
+
+function copyScript() {
+  navigator.clipboard.writeText(SCRAPER).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 2000);
+  });
+}
+
+// ─── TIME HELPERS ─────────────────────────────────────────────────────────────
+function pad(n) { return String(n).padStart(2,'0'); }
+function addMin(h, m, dur) {
+  const total = h*60 + m + dur;
+  return { h: Math.floor(total/60) % 24, m: total % 60 };
+}
+function fmt12(h, m) {
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${pad(m)} ${ampm}`;
+}
+function toICSdt(dateStr, h, m) {
+  return dateStr.replace(/-/g,'') + 'T' + pad(h) + pad(m) + '00';
+}
+function getFirstOccurrence(qstart, day) {
+  const map = { M:1, T:2, W:3, R:4, F:5 };
+  const d = new Date(qstart + 'T12:00:00');
+  let safety = 0;
+  while(d.getDay() !== map[day] && safety++ < 7) d.setDate(d.getDate()+1);
+  return d.toISOString().split('T')[0];
+}
+const RD = { M:'MO', T:'TU', W:'WE', R:'TH', F:'FR' };
+const DAY_NAMES = { M:'Mon', T:'Tue', W:'Wed', R:'Thu', F:'Fri' };
+
+// ─── PARSE + PREVIEW ──────────────────────────────────────────────────────────
+let parsedEvents = [];
+
+function parseAndPreview() {
+  const raw = document.getElementById('json-input').value.trim();
+  if (!raw) { alert('Please paste the JSON output from the console first.'); return; }
+  
+  let data;
+  try {
+    // Strip "AGGIE_CAL:" prefix if they accidentally included it
+    const clean = raw.replace(/^AGGIE_CAL:\s*/,'').trim();
+    data = JSON.parse(clean);
+  } catch(e) {
+    alert('Could not parse that JSON. Make sure you copied just the [ ... ] part from the console.\n\nError: ' + e.message);
+    return;
+  }
+
+  if (!Array.isArray(data) || data.length === 0) {
+    alert('No events found in the pasted data.');
+    return;
+  }
+
+  parsedEvents = data;
+  renderPreview(data);
+  document.getElementById('preview-section').style.display = 'block';
+  document.getElementById('preview-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('num1').classList.add('done');
+  document.getElementById('num2').classList.add('done');
+  document.getElementById('num3').classList.add('done');
+  document.getElementById('num1').textContent = '✓';
+  document.getElementById('num2').textContent = '✓';
+  document.getElementById('num3').textContent = '✓';
+}
+
+function renderPreview(events) {
+  document.getElementById('event-count').textContent = events.length + ' sessions';
+
+  // ── CALENDAR GRID ──
+  const HOURS = [];
+  for(let h = 7; h <= 22; h++) HOURS.push(h);
+  const DAYS = ['M','T','W','R','F'];
+  const PX_PER_MIN = 40/60; // 40px per hour
+
+  let gridHTML = '';
+  // Header row
+  gridHTML += '<div class="cal-header time-col"></div>';
+  ['Mon','Tue','Wed','Thu','Fri'].forEach(d => {
+    gridHTML += `<div class="cal-header">${d}</div>`;
+  });
+
+  // Time rows + day columns
+  // We'll do a different approach: render the grid rows, then overlay events absolutely
+  // Use a wrapper per day column
+  const dayColsHTML = {};
+  DAYS.forEach(d => dayColsHTML[d] = '');
+
+  HOURS.forEach(h => {
+    gridHTML += `<div class="time-label">${h > 12 ? h-12 : h}${h>=12?'pm':'am'}</div>`;
+    DAYS.forEach(d => {
+      gridHTML += `<div class="day-slot" data-day="${d}" data-hour="${h}" style="height:40px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);position:relative;"></div>`;
+    });
+  });
+
+  const grid = document.getElementById('cal-grid');
+  grid.style.gridTemplateColumns = '48px repeat(5, 1fr)';
+  grid.innerHTML = gridHTML;
+
+  // Now place events
+  events.forEach(ev => {
+    const dayIdx = DAYS.indexOf(ev.day);
+    if(dayIdx === -1) return;
+    const topMin = (ev.startH - 7) * 60 + ev.startMin;
+    const topPx = topMin * PX_PER_MIN;
+    const heightPx = Math.max(ev.durMin * PX_PER_MIN, 18);
+    const end = addMin(ev.startH, ev.startMin, ev.durMin);
+
+    // Find the day column cells — grid col is dayIdx+2 (1-indexed, col1=time)
+    // We'll use absolute positioning relative to the whole grid area
+    // Simpler: inject into each hour slot
+    const startHour = ev.startH;
+    const slot = grid.querySelector(`[data-day="${ev.day}"][data-hour="${startHour}"]`);
+    if(!slot) return;
+
+    const slotTopMin = (startHour - 7) * 60;
+    const offsetInSlot = (ev.startH * 60 + ev.startMin - slotTopMin) * PX_PER_MIN;
+
+    const el = document.createElement('div');
+    el.className = `cal-event color-${ev.color}`;
+    el.style.cssText = `top:${offsetInSlot}px;height:${heightPx}px;`;
+    el.innerHTML = `<div class="ev-name">${ev.name}</div><div class="ev-time">${fmt12(ev.startH, ev.startMin)}–${fmt12(end.h, end.m)}</div>${ev.location ? `<div class="ev-loc">📍 ${ev.location}</div>` : ''}`;
+    el.style.position = 'absolute';
+    el.style.left = '2px'; el.style.right = '2px';
+    el.style.zIndex = '2';
+
+    // Tooltip
+    el.addEventListener('mouseenter', (e) => {
+      const t = document.getElementById('tooltip');
+      t.innerHTML = `<strong>${ev.name}</strong><br>${DAY_NAMES[ev.day]} ${fmt12(ev.startH, ev.startMin)}–${fmt12(end.h, end.m)}<br>${ev.location || 'No location'}`;
+      t.style.opacity = '1';
+      t.style.left = (e.clientX + 12) + 'px';
+      t.style.top = (e.clientY - 10) + 'px';
+    });
+    el.addEventListener('mousemove', (e) => {
+      const t = document.getElementById('tooltip');
+      t.style.left = (e.clientX + 12) + 'px';
+      t.style.top = (e.clientY - 10) + 'px';
+    });
+    el.addEventListener('mouseleave', () => {
+      document.getElementById('tooltip').style.opacity = '0';
+    });
+
+    slot.style.position = 'relative';
+    slot.appendChild(el);
+  });
+
+  // ── COURSE LIST ──
+  // Group by unique course name
+  const byName = {};
+  events.forEach(ev => {
+    if(!byName[ev.name]) byName[ev.name] = { days: [], ev };
+    if(!byName[ev.name].days.includes(ev.day)) byName[ev.name].days.push(ev.day);
+  });
+
+  const listEl = document.getElementById('course-list');
+  listEl.innerHTML = '';
+  Object.entries(byName).forEach(([name, info]) => {
+    const ev = info.ev;
+    const end = addMin(ev.startH, ev.startMin, ev.durMin);
+    const daysStr = info.days.map(d => DAY_NAMES[d]).join(', ');
+    const item = document.createElement('div');
+    item.className = 'course-item';
+    item.innerHTML = `
+      <div>
+        <div class="course-item-name">${name}</div>
+        <div class="course-item-detail">${daysStr} · ${fmt12(ev.startH, ev.startMin)}–${fmt12(end.h, end.m)}${ev.location ? ' · ' + ev.location : ''}</div>
+      </div>
+      <div class="course-badge" style="background:var(--green-light);color:var(--green);">✓ Ready</div>
+    `;
+    listEl.appendChild(item);
+  });
+}
+
+// ─── ICS EXPORT ───────────────────────────────────────────────────────────────
+function buildICS() {
+  const qstart = document.getElementById('qstart').value;
+  const qend = document.getElementById('qend').value;
+  const TZID = 'America/Los_Angeles';
+  const until = qend.replace(/-/g,'') + 'T235959Z';
+
+  let lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'CALSCALE:GREGORIAN',
+    'PRODID:-//Aggie Cal Export//EN',
+    'X-WR-CALNAME:UC Davis Spring 2026',
+    'X-WR-TIMEZONE:' + TZID
+  ];
+
+  let uid = 0;
+  parsedEvents.forEach(ev => {
+    const firstDay = getFirstOccurrence(qstart, ev.day);
+    const end = addMin(ev.startH, ev.startMin, ev.durMin);
+    uid++;
+    lines.push('BEGIN:VEVENT');
+    lines.push('UID:aggie-' + uid + '-' + Date.now() + '@aggiecal');
+    lines.push('SUMMARY:' + ev.name);
+    lines.push('DTSTART;TZID=' + TZID + ':' + toICSdt(firstDay, ev.startH, ev.startMin));
+    lines.push('DTEND;TZID=' + TZID + ':' + toICSdt(firstDay, end.h, end.m));
+    lines.push('RRULE:FREQ=WEEKLY;BYDAY=' + RD[ev.day] + ';UNTIL=' + until);
+    if(ev.location) lines.push('LOCATION:' + ev.location);
+    lines.push('END:VEVENT');
+  });
+
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+function exportICS() {
+  if(!parsedEvents.length) { alert('No events to export.'); return; }
+  const ics = buildICS();
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ucdavis-spring2026.ics';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function copyICS() {
+  if(!parsedEvents.length) { alert('No events to export.'); return; }
+  navigator.clipboard.writeText(buildICS()).then(() => {
+    const btn = document.querySelectorAll('.export-btn')[1];
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy ICS to clipboard', 2000);
+  });
+}
+</script>
+</body>
+</html>
