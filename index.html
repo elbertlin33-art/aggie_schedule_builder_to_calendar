@@ -493,9 +493,13 @@ const SCRAPER = `(function(){
     var best=null,p=registeredEl.parentElement,depth=0;
     while(p&&p!==document.body&&depth++<18){
       var txt=norm(p.innerText||p.textContent||'');
-      if(/\\bRegistered\\b/.test(txt)&&COURSE_RE.test(txt)&&/\\bCRN\\b/i.test(txt)){
+      if(/\\b(SUGGESTED COURSES|PREVIOUSLY SAVED COURSES|Final Exams)\\b/i.test(txt)){
+        p=p.parentElement;
+        continue;
+      }
+      if(/\\bRegistered\\b/.test(txt)&&COURSE_RE.test(txt)&&/\\bCRN\\b/i.test(txt)&&/\\bUnits\\b/i.test(txt)){
         best=p;
-        if(/Course Details|Important Course Details/i.test(txt))break;
+        if(/\\bActions\\b/i.test(txt)&&/Course Details|Important Course Details/i.test(txt))break;
       }
       p=p.parentElement;
     }
@@ -568,6 +572,8 @@ const SCRAPER = `(function(){
   var registeredBlocks=new Set();
   document.querySelectorAll('*').forEach(function(el){
     if(el.children.length===0&&el.textContent.trim()==='Registered'){
+      var around=norm(el.closest('body')?el.parentElement&&el.parentElement.innerText:'');
+      if(/\\b(SUGGESTED COURSES|PREVIOUSLY SAVED COURSES|Final Exams)\\b/i.test(around))return;
       var block=bestCourseBlock(el);
       if(block)registeredBlocks.add(block);
     }
