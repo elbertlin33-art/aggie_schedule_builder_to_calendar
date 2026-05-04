@@ -486,6 +486,9 @@ const SCRAPER = `(function(){
     return COURSE_RE.test(s)&&!/^Course Details/i.test(s)&&s.length<160;
   }
   function getCourseTitle(scope){
+    var crn=getCrnFromCourseBlock(scope);
+    var byId=crn&&document.querySelector('#MessageContainerHeader1_'+crn);
+    if(byId)return cleanCourseTitle(byId.innerText||byId.textContent||'');
     var nodes=Array.from(scope.querySelectorAll('*'));
     for(var i=0;i<nodes.length;i++){
       var t=cleanCourseTitle(nodes[i].innerText||nodes[i].textContent||'');
@@ -494,6 +497,22 @@ const SCRAPER = `(function(){
     var text=scope.innerText||scope.textContent||'';
     var m=text.match(/[A-Z]{2,5}\\s*\\d{1,3}[A-Z]*\\s+[A-Z0-9]{3}\\b[^\\n]*/);
     return m?cleanCourseTitle(m[0]):'Unknown';
+  }
+  function getCrnFromCourseBlock(scope){
+    var id=(scope&&scope.id)||'';
+    var m=id.match(/^t(\\d+)$/);
+    if(m)return m[1];
+    var text=(scope&&scope.innerText)||'';
+    m=text.match(/\\bCRN:\\s*(\\d+)\\b/i);
+    return m?m[1]:null;
+  }
+  function isRegisteredCourseBlock(scope){
+    var crn=getCrnFromCourseBlock(scope);
+    if(!crn)return false;
+    var status=document.querySelector('#t'+crn+' div.data.clearfix.container-fluid div dl span:nth-child(5)');
+    var statusText=norm(status?status.innerText||status.textContent:'');
+    var text=norm(scope.innerText||scope.textContent||'');
+    return /\\bRegistered\\b/i.test(statusText||text)&&COURSE_RE.test(text)&&/\\bCRN\\b/i.test(text)&&/\\bUnits\\b/i.test(text);
   }
   function bestCourseBlock(registeredEl){
     var root=getScheduleRoot();
@@ -541,6 +560,10 @@ const SCRAPER = `(function(){
       var m=joined.match(MEETING_RE);
       if(m)loc=norm(m[4]||'');
     }
+    if(!/^(Lecture|Laboratory|Lab|Discussion|Rehearsal|Performance Instruction|Independent Study|World Wide Web Virtual Lecture|Seminar|Studio|Fieldwork|Activity)$/i.test(type)){
+      var line=parseMeetingLine(joined);
+      if(line)return line;
+    }
     return {type:type,timeStr:timeStr,daysStr:daysStr,loc:loc};
   }
   function parseMeetingLine(line){
@@ -582,9 +605,11 @@ const SCRAPER = `(function(){
   expandVisibleDetails();
  
   var registeredBlocks=new Set();
+  Array.from(scheduleRoot.querySelectorAll('[id^="t"]')).forEach(function(child){
+    if(isRegisteredCourseBlock(child))registeredBlocks.add(child);
+  });
   Array.from(scheduleRoot.children).forEach(function(child){
-    var txt=norm(child.innerText||child.textContent||'');
-    if(child.id&&/\\bRegistered\\b/.test(txt)&&COURSE_RE.test(txt)&&/\\bCRN\\b/i.test(txt)&&/\\bUnits\\b/i.test(txt)){
+    if(child.id&&isRegisteredCourseBlock(child)){
       registeredBlocks.add(child);
     }
   });
@@ -601,19 +626,22 @@ const SCRAPER = `(function(){
  
   searchScope.forEach(function(scope){
     var courseName=getCourseTitle(scope);
+    var crn=getCrnFromCourseBlock(scope);
+    var details=crn?document.querySelector('#CoursecollapseOne_'+crn):null;
+    var tableScope=details||scope;
  
-    scope.querySelectorAll('tr').forEach(function(row){
+    tableScope.querySelectorAll('table.table-sm.mb-0 tr, table tr').forEach(function(row){
       var tds=Array.from(row.querySelectorAll('td'));
       if(tds.length<3)return;
       addMeeting(courseName,parseMeetingParts(tds.map(function(t){return t.innerText||t.textContent||'';})),events,seen);
     });
 
-    Array.from(scope.querySelectorAll('div,li,p,span')).forEach(function(el){
+    Array.from(tableScope.querySelectorAll('div,li,p,span')).forEach(function(el){
       if(el.querySelector('div,li,p,span,table'))return;
       addMeeting(courseName,parseMeetingLine(el.innerText||el.textContent||''),events,seen);
     });
 
-    (scope.innerText||scope.textContent||'').split('\\n').forEach(function(line){
+    (tableScope.innerText||tableScope.textContent||'').split('\\n').forEach(function(line){
       addMeeting(courseName,parseMeetingLine(line),events,seen);
     });
   });
