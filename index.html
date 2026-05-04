@@ -3,17 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aggie Calendar Export</title>
+<title>Aggie Scheduler</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #f5f3ee;
+  --bg: #fff8f0;
   --surface: #ffffff;
-  --border: #e2ddd5;
-  --text: #1a1916;
-  --muted: #8c8880;
-  --accent: #c8522a;
-  --accent-light: #f5e8e2;
+  --border: #eadfd3;
+  --text: #241c18;
+  --muted: #8e7f73;
+  --accent: #e35d39;
+  --accent-light: #ffe6da;
   --green: #2a7a4b;
   --green-light: #e2f0e8;
   --blue: #1e4fa3;
@@ -24,20 +25,29 @@
   --sans: 'Syne', sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+body {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255, 214, 153, 0.35), transparent 28%),
+    radial-gradient(circle at 88% 0%, rgba(155, 210, 207, 0.28), transparent 26%),
+    linear-gradient(180deg, #fffaf2 0%, var(--bg) 42%, #fff 100%);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+}
  
 /* HEADER */
 header {
-  background: var(--text);
+  background: linear-gradient(135deg, #25211f, #443026);
   color: var(--bg);
   padding: 1.5rem 2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-shadow: 0 10px 30px rgba(36, 28, 24, 0.18);
 }
-.logo { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-.logo span { color: var(--accent); }
-.logo-sub { font-family: var(--mono); font-size: 10px; color: #888; letter-spacing: 0.1em; margin-top: 2px; }
+.logo { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+.logo span { color: #ffd166; }
+.logo-sub { font-family: var(--mono); font-size: 10px; color: #f1cdbd; letter-spacing: 0.1em; margin-top: 2px; }
  
 /* MAIN LAYOUT */
 main { max-width: 960px; margin: 0 auto; padding: 2rem; }
@@ -46,9 +56,16 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
 .step-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 14px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  box-shadow: 0 14px 34px rgba(91, 70, 54, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.step-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px rgba(91, 70, 54, 0.12);
+  border-color: #e6c8b8;
 }
 .step-header {
   display: flex;
@@ -99,9 +116,9 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
   font-family: var(--mono);
   font-size: 10px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
 }
-.copy-btn:hover { background: var(--accent); color: white; }
+.copy-btn:hover { background: var(--accent); color: white; transform: translateY(-1px); box-shadow: 0 8px 18px rgba(0,0,0,0.18); }
  
 /* PASTE AREA */
 .paste-area {
@@ -132,9 +149,10 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
+  box-shadow: 0 8px 18px rgba(227, 93, 57, 0.22);
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
 }
-.parse-btn:hover { background: #a8421d; }
+.parse-btn:hover { background: #c94828; transform: translateY(-1px); box-shadow: 0 12px 24px rgba(227, 93, 57, 0.28); }
 .parse-btn:active { transform: scale(0.98); }
  
 /* QUARTER DATES */
@@ -225,6 +243,37 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
   margin-top: 0.75rem;
   flex-wrap: wrap;
 }
+.syllabus-box {
+  margin-top: 1rem;
+  background: #fffaf2;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+}
+.syllabus-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.syllabus-results {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.candidate-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.8rem;
+}
+.candidate-title { font-size: 12px; font-weight: 600; }
+.candidate-detail { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
 .parse-btn.secondary {
   background: var(--blue-light);
   color: var(--blue);
@@ -404,13 +453,13 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
   font-weight: 600;
   cursor: pointer;
   border: none;
-  transition: transform 0.1s, background 0.15s;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
 }
 .export-btn:active { transform: scale(0.98); }
 .export-btn.primary { background: var(--accent); color: white; }
-.export-btn.primary:hover { background: #a8421d; }
+.export-btn.primary:hover { background: #c94828; transform: translateY(-1px); box-shadow: 0 12px 24px rgba(227, 93, 57, 0.24); }
 .export-btn.secondary { background: var(--blue-light); color: var(--blue); border: 1px solid #b0c4e8; }
-.export-btn.secondary:hover { background: #cddaf5; }
+.export-btn.secondary:hover { background: #cddaf5; transform: translateY(-1px); box-shadow: 0 10px 20px rgba(30, 79, 163, 0.14); }
  
 /* INSTRUCTIONS */
 .instruction-steps { margin-top: 0.75rem; counter-reset: step; }
@@ -470,8 +519,8 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
  
 <header>
   <div>
-    <div class="logo">Aggie <span>Cal</span> Export</div>
-    <div class="logo-sub">UC DAVIS SCHEDULE BUILDER → GOOGLE CALENDAR</div>
+    <div class="logo">Aggie <span>Scheduler</span></div>
+    <div class="logo-sub">UC DAVIS COURSES, FINALS, MIDTERMS → CALENDAR</div>
   </div>
 </header>
  
@@ -493,6 +542,7 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
         <input type="date" id="qend" value="2026-06-12">
       </div>
     </div>
+    <p class="step-desc">Weekly classes export for 10 instructional weeks and stop before finals week. If finals are detected, Aggie Scheduler uses the first final to determine finals week automatically.</p>
   </div>
  
   <!-- STEP 2: SCRAPER -->
@@ -558,6 +608,44 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
           <label><input type="checkbox" name="manual-day" value="F"> F</label>
         </div>
         <button class="parse-btn secondary" onclick="addManualEvent()">Add to Preview</button>
+      </div>
+
+      <div class="syllabus-box">
+        <div class="manual-title">Midterms and syllabus dates</div>
+        <div class="manual-grid">
+          <div class="manual-field">
+            <label>COURSE</label>
+            <input id="exam-course" type="text" placeholder="EEC 130B">
+          </div>
+          <div class="manual-field">
+            <label>TITLE</label>
+            <input id="exam-title" type="text" placeholder="Midterm 1">
+          </div>
+          <div class="manual-field">
+            <label>DATE</label>
+            <input id="exam-date" type="date">
+          </div>
+          <div class="manual-field">
+            <label>START</label>
+            <input id="exam-start" type="time">
+          </div>
+          <div class="manual-field">
+            <label>END</label>
+            <input id="exam-end" type="time">
+          </div>
+        </div>
+        <div class="manual-actions">
+          <div class="manual-field" style="flex:1;min-width:220px;">
+            <label>LOCATION</label>
+            <input id="exam-location" type="text" placeholder="Giedt 1003">
+          </div>
+          <button class="parse-btn secondary" onclick="addManualExam()">Add Midterm/Exam</button>
+        </div>
+        <div class="syllabus-actions">
+          <input id="syllabus-file" type="file" accept=".pdf,.txt,.text">
+          <button class="parse-btn secondary" onclick="scanSyllabus()">Find Dates from Syllabus</button>
+        </div>
+        <div class="syllabus-results" id="syllabus-results"></div>
       </div>
     </div>
   </div>
@@ -731,6 +819,37 @@ const SCRAPER = `(function(){
     if(!m)return null;
     return {type:norm(m[1]),timeStr:norm(m[2]),daysStr:norm(m[3]),loc:norm(m[4]||'')};
   }
+  function toISODate(mm,dd,yyyy){
+    var y=String(yyyy);
+    if(y.length===2)y='20'+y;
+    return y+'-'+String(mm).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
+  }
+  function parseFinalExam(courseName, text){
+    text=norm(text);
+    if(!text)return null;
+    var date=text.match(/(\\d{1,2})[\\/\\-](\\d{1,2})[\\/\\-](\\d{2,4})/);
+    var timeRange=text.match(/(\\d{1,2}:\\d{2}\\s*[AP]M)\\s*-\\s*(\\d{1,2}:\\d{2}\\s*[AP]M)/i);
+    var singleTime=text.match(/(\\d{1,2}:\\d{2}\\s*[AP]M)/i);
+    if(!date||(!timeRange&&!singleTime))return null;
+    var start=parseTime(timeRange?timeRange[1]:singleTime[1]);
+    var end=timeRange?parseTime(timeRange[2]):null;
+    if(!start)return null;
+    var durMin=end?(end.h*60+end.min)-(start.h*60+start.min):120;
+    if(durMin<=0)durMin+=1440;
+    return {
+      name:courseName+' (Final Exam)',
+      courseName:courseName,
+      type:'Final Exam',
+      kind:'final',
+      oneOff:true,
+      date:toISODate(date[1],date[2],date[3]),
+      startH:start.h,
+      startMin:start.min,
+      durMin:durMin,
+      location:'',
+      color:'default'
+    };
+  }
   function addMeeting(courseName, meeting, events, seen){
     if(!meeting)return;
     if(meeting.unscheduled){
@@ -802,6 +921,15 @@ const SCRAPER = `(function(){
     var crn=getCrnFromCourseBlock(scope);
     var details=crn?document.querySelector('#CoursecollapseOne_'+crn):null;
     var tableScope=details||scope;
+    var finalEl=details&&details.querySelector('div.finalExam,.finalExam');
+    var finalEvent=parseFinalExam(courseName,finalEl?finalEl.innerText||finalEl.textContent:'');
+    if(finalEvent){
+      var finalKey=courseName+'|final|'+finalEvent.date+'|'+finalEvent.startH+':'+finalEvent.startMin;
+      if(!seen[finalKey]){
+        seen[finalKey]=true;
+        events.push(finalEvent);
+      }
+    }
  
     tableScope.querySelectorAll('table.table-sm.mb-0 tr, table tr').forEach(function(row){
       var tds=Array.from(row.querySelectorAll('td'));
@@ -829,7 +957,7 @@ const SCRAPER = `(function(){
   console.log('%cAGGIE_CAL: Copy everything below this line','color:#ff6b35;font-weight:bold;font-size:14px;');
   console.log(out);
   console.log('%cAGGIE_CAL: Copy everything above this line','color:#ff6b35;font-weight:bold;font-size:14px;');
-  alert('Done! Found '+events.length+' schedule items, including any registered TBA rows.\\n\\nIn the console, copy the JSON between the orange lines and paste into the Aggie Cal Export app.');
+  alert('Done! Found '+events.length+' schedule items, including finals and any registered TBA rows.\\n\\nIn the console, copy the JSON between the orange lines and paste into Aggie Scheduler.');
 })();`;
  
 document.getElementById('script-display').textContent = SCRAPER;
@@ -856,6 +984,32 @@ function fmt12(h, m) {
 function toICSdt(dateStr, h, m) {
   return dateStr.replace(/-/g,'') + 'T' + pad(h) + pad(m) + '00';
 }
+function fmtDate(dateStr) {
+  if(!dateStr) return '';
+  const d = new Date(dateStr + 'T12:00:00');
+  if(Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+}
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+function mondayOfWeek(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().split('T')[0];
+}
+function getInstructionEndDate(qstart) {
+  const finalDates = parsedEvents
+    .filter(ev => ev.oneOff && /final/i.test(ev.type || ev.name || '') && ev.date)
+    .map(ev => ev.date)
+    .sort();
+  if(finalDates.length) return addDays(mondayOfWeek(finalDates[0]), -1);
+  return addDays(qstart, 70 - 1);
+}
 function getFirstOccurrence(qstart, day) {
   const map = { M:1, T:2, W:3, R:4, F:5 };
   const d = new Date(qstart + 'T12:00:00');
@@ -881,7 +1035,8 @@ function colorForCourse(courseKey) {
 }
 
 function isScheduledEvent(ev) {
-  return !ev.unscheduled && DAY_NAMES[ev.day] && Number.isFinite(ev.startH) && Number.isFinite(ev.startMin) && Number.isFinite(ev.durMin) && ev.durMin > 0;
+  const hasTime = Number.isFinite(ev.startH) && Number.isFinite(ev.startMin) && Number.isFinite(ev.durMin) && ev.durMin > 0;
+  return !ev.unscheduled && hasTime && (DAY_NAMES[ev.day] || ev.oneOff && ev.date);
 }
 
 function normalizeEvent(ev) {
@@ -898,6 +1053,9 @@ function normalizeEvent(ev) {
     durMin: Number(ev.durMin),
     location: String(ev.location || ''),
     unscheduled: Boolean(ev.unscheduled || ev.noSchedule),
+    oneOff: Boolean(ev.oneOff || ev.date),
+    date: ev.date || '',
+    kind: ev.kind || '',
     note: String(ev.note || (ev.unscheduled || ev.noSchedule ? 'TBA' : '')),
     color: ev.color && ev.color !== 'default' ? ev.color : colorForCourse(courseKey)
   };
@@ -979,11 +1137,146 @@ function addManualEvent() {
 
   showPreview(parsedEvents.concat(added));
 }
+
+function addManualExam(candidate) {
+  const course = candidate?.course || document.getElementById('exam-course').value.trim();
+  const title = candidate?.title || document.getElementById('exam-title').value.trim() || 'Midterm';
+  const date = candidate?.date || document.getElementById('exam-date').value;
+  const start = candidate?.start ? parseTimeInput(candidate.start) : parseTimeInput(document.getElementById('exam-start').value);
+  const end = candidate?.end ? parseTimeInput(candidate.end) : parseTimeInput(document.getElementById('exam-end').value);
+  const location = candidate?.location || document.getElementById('exam-location').value.trim();
+
+  if(!course) { alert('Enter a course name first.'); return; }
+  if(!date) { alert('Choose the exam date.'); return; }
+  if(!start || !end) { alert('Enter both start and end times.'); return; }
+
+  let durMin = end.total - start.total;
+  if(durMin <= 0) durMin += 1440;
+
+  showPreview(parsedEvents.concat([{
+    name: `${course} (${title})`,
+    courseName: course,
+    type: title,
+    kind: /final/i.test(title) ? 'final' : 'midterm',
+    oneOff: true,
+    date,
+    startH: start.h,
+    startMin: start.m,
+    durMin,
+    location,
+    color: 'default'
+  }]));
+}
+
+async function readSyllabusText(file) {
+  if(!file) return '';
+  if(file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+    if(!window.pdfjsLib) throw new Error('PDF reader did not load. Try a .txt syllabus or check your internet connection.');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const data = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    let text = '';
+    for(let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+      text += content.items.map(item => item.str).join(' ') + '\n';
+    }
+    return text;
+  }
+  return file.text();
+}
+
+function normalizeSyllabusDate(raw) {
+  const currentYear = new Date().getFullYear();
+  let m = raw.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  if(m) {
+    const y = m[3] ? (m[3].length === 2 ? '20' + m[3] : m[3]) : currentYear;
+    return `${y}-${pad(m[1])}-${pad(m[2])}`;
+  }
+  const months = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
+  m = raw.match(new RegExp(`\\b(${months})\\s+(\\d{1,2})(?:,?\\s*(\\d{4}))?`, 'i'));
+  if(!m) return '';
+  const names = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const month = names.findIndex(name => m[1].toLowerCase().startsWith(name)) + 1;
+  return `${m[3] || currentYear}-${pad(month)}-${pad(m[2])}`;
+}
+
+function extractSyllabusCandidates(text) {
+  const lines = text.split(/\n|(?<=\.)\s+/).map(s => s.replace(/\s+/g,' ').trim()).filter(Boolean);
+  const hits = [];
+  const dateRe = /(\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:,?\s*\d{4})?)/i;
+  const timeRe = /(\d{1,2}:\d{2})\s*(AM|PM)?(?:\s*-\s*(\d{1,2}:\d{2})\s*(AM|PM)?)?/i;
+  lines.forEach(line => {
+    if(!/\b(midterm|exam|test|final)\b/i.test(line)) return;
+    const dateMatch = line.match(dateRe);
+    if(!dateMatch) return;
+    const date = normalizeSyllabusDate(dateMatch[1]);
+    if(!date) return;
+    const timeMatch = line.match(timeRe);
+    let start = '12:00', end = '13:00';
+    if(timeMatch) {
+      const ap = (timeMatch[2] || timeMatch[4] || '').toUpperCase();
+      const startParsed = parseLooseTime(timeMatch[1], ap);
+      const endParsed = timeMatch[3] ? parseLooseTime(timeMatch[3], (timeMatch[4] || ap).toUpperCase()) : null;
+      if(startParsed) start = startParsed;
+      if(endParsed) end = endParsed;
+      else {
+        const [h,m] = start.split(':').map(Number);
+        end = `${pad((h + 1) % 24)}:${pad(m)}`;
+      }
+    }
+    hits.push({ title: /final/i.test(line) ? 'Final Exam' : 'Midterm', date, start, end, line });
+  });
+  return hits.slice(0, 8);
+}
+
+function parseLooseTime(time, ap) {
+  const parts = time.split(':').map(Number);
+  if(parts.length !== 2) return '';
+  let h = parts[0], m = parts[1];
+  if(ap === 'PM' && h !== 12) h += 12;
+  if(ap === 'AM' && h === 12) h = 0;
+  return `${pad(h)}:${pad(m)}`;
+}
+
+async function scanSyllabus() {
+  const file = document.getElementById('syllabus-file').files[0];
+  const course = document.getElementById('exam-course').value.trim();
+  const out = document.getElementById('syllabus-results');
+  if(!file) { alert('Choose a PDF or text syllabus first.'); return; }
+  out.innerHTML = '<div class="candidate-item"><div class="candidate-title">Scanning syllabus...</div></div>';
+  try {
+    const text = await readSyllabusText(file);
+    const candidates = extractSyllabusCandidates(text);
+    if(!candidates.length) {
+      out.innerHTML = '<div class="candidate-item"><div><div class="candidate-title">No likely midterm/final dates found</div><div class="candidate-detail">You can still add the date manually above.</div></div></div>';
+      return;
+    }
+    out.innerHTML = '';
+    candidates.forEach(candidate => {
+      const item = document.createElement('div');
+      item.className = 'candidate-item';
+      item.innerHTML = `
+        <div>
+          <div class="candidate-title">${candidate.title} · ${fmtDate(candidate.date)} · ${candidate.start}-${candidate.end}</div>
+          <div class="candidate-detail">${candidate.line}</div>
+        </div>
+        <button class="parse-btn secondary" type="button">Add</button>
+      `;
+      item.querySelector('button').addEventListener('click', () => addManualExam({ ...candidate, course }));
+      out.appendChild(item);
+    });
+  } catch(err) {
+    out.innerHTML = `<div class="candidate-item"><div><div class="candidate-title">Could not read syllabus</div><div class="candidate-detail">${err.message}</div></div></div>`;
+  }
+}
  
 function renderPreview(events) {
   const scheduledEvents = events.filter(isScheduledEvent);
+  const weeklyEvents = scheduledEvents.filter(ev => !ev.oneOff);
+  const oneOffEvents = scheduledEvents.filter(ev => ev.oneOff);
   const unscheduledEvents = events.filter(ev => ev.unscheduled);
-  document.getElementById('event-count').textContent = scheduledEvents.length + ' calendar sessions' + (unscheduledEvents.length ? ' · ' + unscheduledEvents.length + ' TBA' : '');
+  document.getElementById('event-count').textContent = weeklyEvents.length + ' class sessions' + (oneOffEvents.length ? ' · ' + oneOffEvents.length + ' exams' : '') + (unscheduledEvents.length ? ' · ' + unscheduledEvents.length + ' TBA' : '');
  
   // ── CALENDAR GRID ──
   const START_HOUR = 7;
@@ -1013,7 +1306,7 @@ function renderPreview(events) {
   grid.style.gridTemplateColumns = '48px repeat(5, 1fr)';
   grid.innerHTML = gridHTML;
  
-  scheduledEvents.forEach(ev => {
+  weeklyEvents.forEach(ev => {
     const dayIdx = DAYS.indexOf(ev.day);
     if(dayIdx === -1) return;
     const topMin = (ev.startH * 60 + ev.startMin) - (START_HOUR * 60);
@@ -1056,8 +1349,9 @@ function renderPreview(events) {
   const byName = {};
   events.forEach(ev => {
     const key = ev.courseName || getCourseKeyFromName(ev.name);
-    if(!byName[key]) byName[key] = { scheduled: [], unscheduled: [], color: ev.color, courseName: key };
-    if(isScheduledEvent(ev)) byName[key].scheduled.push(ev);
+    if(!byName[key]) byName[key] = { scheduled: [], exams: [], unscheduled: [], color: ev.color, courseName: key };
+    if(isScheduledEvent(ev) && ev.oneOff) byName[key].exams.push(ev);
+    else if(isScheduledEvent(ev)) byName[key].scheduled.push(ev);
     else byName[key].unscheduled.push(ev);
   });
  
@@ -1078,6 +1372,10 @@ function renderPreview(events) {
       const end = addMin(ev.startH, ev.startMin, ev.durMin);
       details.push(`${group.days.map(d => DAY_NAMES[d]).join(', ')} · ${fmt12(ev.startH, ev.startMin)}–${fmt12(end.h, end.m)}${ev.location ? ' · ' + ev.location : ''}`);
     });
+    info.exams.forEach(ev => {
+      const end = addMin(ev.startH, ev.startMin, ev.durMin);
+      details.push(`${ev.type || 'Exam'} · ${fmtDate(ev.date)} · ${fmt12(ev.startH, ev.startMin)}–${fmt12(end.h, end.m)}${ev.location ? ' · ' + ev.location : ''}`);
+    });
     info.unscheduled.forEach(ev => {
       details.push(`${ev.type || 'Class'} · ${ev.note || 'TBA'} · not exported`);
     });
@@ -1097,10 +1395,11 @@ function renderPreview(events) {
         <div class="course-item-detail">${details.join('<br>')}</div>
       </div>
       <div class="course-item-actions">
-        <div class="course-badge" style="background:${info.unscheduled.length ? 'var(--gold-light)' : 'var(--green-light)'};color:${info.unscheduled.length ? 'var(--gold)' : 'var(--green)'};">${info.scheduled.length ? 'Ready' : 'TBA only'}</div>
-        <button class="delete-course-btn" title="Delete this class" onclick="deleteCourse(${JSON.stringify(courseKey).replace(/"/g,'&quot;')})">×</button>
+        <div class="course-badge" style="background:${info.unscheduled.length ? 'var(--gold-light)' : 'var(--green-light)'};color:${info.unscheduled.length ? 'var(--gold)' : 'var(--green)'};">${info.scheduled.length || info.exams.length ? 'Ready' : 'TBA only'}</div>
+        <button class="delete-course-btn" title="Delete this class" type="button">×</button>
       </div>
     `;
+    item.querySelector('.delete-course-btn').addEventListener('click', () => deleteCourse(courseKey));
     listEl.appendChild(item);
   });
 }
@@ -1108,22 +1407,22 @@ function renderPreview(events) {
 // ─── ICS EXPORT ───────────────────────────────────────────────────────────────
 function buildICS() {
   const qstart = document.getElementById('qstart').value;
-  const qend = document.getElementById('qend').value;
   const TZID = 'America/Los_Angeles';
-  const until = qend.replace(/-/g,'') + 'T235959Z';
+  const instructionEnd = getInstructionEndDate(qstart);
+  const until = instructionEnd.replace(/-/g,'') + 'T235959Z';
  
   let lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'CALSCALE:GREGORIAN',
-    'PRODID:-//Aggie Cal Export//EN',
+    'PRODID:-//Aggie Scheduler//EN',
     'X-WR-CALNAME:UC Davis Spring 2026',
     'X-WR-TIMEZONE:' + TZID
   ];
  
   let uid = 0;
   parsedEvents.filter(isScheduledEvent).forEach(ev => {
-    const firstDay = getFirstOccurrence(qstart, ev.day);
+    const firstDay = ev.oneOff ? ev.date : getFirstOccurrence(qstart, ev.day);
     const end = addMin(ev.startH, ev.startMin, ev.durMin);
     uid++;
     lines.push('BEGIN:VEVENT');
@@ -1131,7 +1430,7 @@ function buildICS() {
     lines.push('SUMMARY:' + ev.name);
     lines.push('DTSTART;TZID=' + TZID + ':' + toICSdt(firstDay, ev.startH, ev.startMin));
     lines.push('DTEND;TZID=' + TZID + ':' + toICSdt(firstDay, end.h, end.m));
-    lines.push('RRULE:FREQ=WEEKLY;BYDAY=' + RD[ev.day] + ';UNTIL=' + until);
+    if(!ev.oneOff) lines.push('RRULE:FREQ=WEEKLY;BYDAY=' + RD[ev.day] + ';UNTIL=' + until);
     if(ev.location) lines.push('LOCATION:' + ev.location);
     lines.push('END:VEVENT');
   });
