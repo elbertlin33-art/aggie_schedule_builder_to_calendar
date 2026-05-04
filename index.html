@@ -342,6 +342,9 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
 .color-dkblue { background: #c6d8f5; color: #1a2e6b; border-left: 3px solid #2980b9; }
 .color-ltblue { background: #deeaf5; color: #1a3a5c; border-left: 3px solid #3498db; }
 .color-ltbrown { background: #f5e6c6; color: #5c3a1a; border-left: 3px solid #d4874a; }
+.color-gold { background: #faf0c8; color: #6a4a00; border-left: 3px solid #c99700; }
+.color-teal { background: #d9f0ef; color: #115d5a; border-left: 3px solid #1f9a94; }
+.color-violet { background: #ece3fa; color: #4a247a; border-left: 3px solid #8e5ad8; }
 .color-default { background: #e8e8f5; color: #2a2a5c; border-left: 3px solid #7a7aad; }
  
 /* COURSE LIST */
@@ -349,6 +352,7 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
 .course-item {
   background: var(--bg);
   border: 1px solid var(--border);
+  border-left-width: 4px;
   border-radius: 10px;
   padding: 0.75rem 1rem;
   display: grid;
@@ -358,6 +362,11 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
 }
 .course-item-name { font-size: 13px; font-weight: 600; }
 .course-item-detail { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
+.course-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .course-badge {
   font-family: var(--mono);
   font-size: 10px;
@@ -365,6 +374,18 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
   border-radius: 99px;
   white-space: nowrap;
 }
+.delete-course-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e3b2a3;
+  border-radius: 8px;
+  background: #f8e5df;
+  color: #9b3519;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.delete-course-btn:hover { background: #f1d0c4; }
  
 /* EXPORT */
 .export-row {
@@ -677,16 +698,19 @@ const SCRAPER = `(function(){
     });
   }
   function parseMeetingParts(parts){
-    parts=parts.map(norm).filter(Boolean);
-    if(parts.length<3)return null;
+    var raw=parts.map(norm);
+    parts=raw.filter(Boolean);
     var joined=parts.join(' ');
+    var type=parts[0]||'Class';
+    if(/\\bTBA\\b/i.test(joined)&&!/\\d{1,2}:\\d{2}/.test(joined)){
+      return {type:type,unscheduled:true,note:'TBA'};
+    }
+    if(parts.length<3)return null;
     var timeStr=parts.find(function(t){return /\\d{1,2}:\\d{2}\\s*[AP]M\\s*-\\s*\\d{1,2}:\\d{2}\\s*[AP]M/i.test(t);});
     if(!timeStr)return null;
     var daysStr=parts.find(function(t){return /^[MTWRF]{1,5}$/.test(t);})||'';
     if(!daysStr)return null;
-    var timeIdx=parts.indexOf(timeStr);
     var daysIdx=parts.indexOf(daysStr);
-    var type=parts[0]||'Class';
     var loc=parts.slice(daysIdx+1).join(' ');
     if(!loc){
       var m=joined.match(MEETING_RE);
@@ -700,13 +724,30 @@ const SCRAPER = `(function(){
   }
   function parseMeetingLine(line){
     line=norm(line);
-    if(!line||/\\bTBA\\b/i.test(line)&&!/\\d{1,2}:\\d{2}/.test(line))return null;
+    if(!line)return null;
+    var tba=line.match(/^(Lecture|Laboratory|Lab|Discussion|Rehearsal|Performance Instruction|Independent Study|World Wide Web Virtual Lecture|Seminar|Studio|Fieldwork|Activity)\\b.*\\bTBA\\b/i);
+    if(tba&&!/\\d{1,2}:\\d{2}/.test(line))return {type:norm(tba[1]),unscheduled:true,note:'TBA'};
     var m=line.match(MEETING_RE);
     if(!m)return null;
     return {type:norm(m[1]),timeStr:norm(m[2]),daysStr:norm(m[3]),loc:norm(m[4]||'')};
   }
   function addMeeting(courseName, meeting, events, seen){
     if(!meeting)return;
+    if(meeting.unscheduled){
+      var unscheduledKey=courseName+'|'+meeting.type+'|unscheduled|'+(meeting.note||'');
+      if(seen[unscheduledKey])return;
+      seen[unscheduledKey]=true;
+      events.push({
+        name:courseName+' ('+meeting.type+')',
+        courseName:courseName,
+        type:meeting.type,
+        unscheduled:true,
+        note:meeting.note||'TBA',
+        location:'',
+        color:'default'
+      });
+      return;
+    }
     var tm=meeting.timeStr.match(/(\\d{1,2}:\\d{2}\\s*[AP]M)\\s*-\\s*(\\d{1,2}:\\d{2}\\s*[AP]M)/i);
     if(!tm)return;
     var st=parseTime(tm[1]),et=parseTime(tm[2]);
@@ -788,7 +829,7 @@ const SCRAPER = `(function(){
   console.log('%cAGGIE_CAL: Copy everything below this line','color:#ff6b35;font-weight:bold;font-size:14px;');
   console.log(out);
   console.log('%cAGGIE_CAL: Copy everything above this line','color:#ff6b35;font-weight:bold;font-size:14px;');
-  alert('Done! Found '+events.length+' sessions.\\n\\nIn the console, copy the JSON between the orange lines and paste into the Aggie Cal Export app.');
+  alert('Done! Found '+events.length+' schedule items, including any registered TBA rows.\\n\\nIn the console, copy the JSON between the orange lines and paste into the Aggie Cal Export app.');
 })();`;
  
 document.getElementById('script-display').textContent = SCRAPER;
@@ -827,23 +868,44 @@ const DAY_NAMES = { M:'Mon', T:'Tue', W:'Wed', R:'Thu', F:'Fri' };
  
 // ─── PARSE + PREVIEW ──────────────────────────────────────────────────────────
 let parsedEvents = [];
+const COURSE_COLORS = ['dkred','dkgreen','dkblue','gold','teal','violet','ltred','ltgreen','ltblue','ltbrown','default'];
+
+function getCourseKeyFromName(name) {
+  return String(name || 'Class').replace(/\s+\([^)]*\)\s*$/,'').trim();
+}
+
+function colorForCourse(courseKey) {
+  let hash = 0;
+  for (let i = 0; i < courseKey.length; i++) hash = ((hash << 5) - hash + courseKey.charCodeAt(i)) | 0;
+  return COURSE_COLORS[Math.abs(hash) % COURSE_COLORS.length];
+}
+
+function isScheduledEvent(ev) {
+  return !ev.unscheduled && DAY_NAMES[ev.day] && Number.isFinite(ev.startH) && Number.isFinite(ev.startMin) && Number.isFinite(ev.durMin) && ev.durMin > 0;
+}
 
 function normalizeEvent(ev) {
-  return {
+  const name = String(ev.name || 'Class');
+  const courseKey = String(ev.courseName || getCourseKeyFromName(name));
+  const normalized = {
+    id: ev.id || `ev-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     name: String(ev.name || 'Class'),
+    courseName: courseKey,
+    type: ev.type || (name.match(/\(([^)]*)\)\s*$/) || [,'Class'])[1],
     day: String(ev.day || '').trim().toUpperCase(),
     startH: Number(ev.startH),
     startMin: Number(ev.startMin || 0),
     durMin: Number(ev.durMin),
     location: String(ev.location || ''),
-    color: ev.color || 'default'
+    unscheduled: Boolean(ev.unscheduled || ev.noSchedule),
+    note: String(ev.note || (ev.unscheduled || ev.noSchedule ? 'TBA' : '')),
+    color: ev.color && ev.color !== 'default' ? ev.color : colorForCourse(courseKey)
   };
+  return normalized;
 }
 
 function showPreview(events, shouldScroll = true) {
-  parsedEvents = events.map(normalizeEvent).filter(ev =>
-    DAY_NAMES[ev.day] && Number.isFinite(ev.startH) && Number.isFinite(ev.startMin) && Number.isFinite(ev.durMin) && ev.durMin > 0
-  );
+  parsedEvents = events.map(normalizeEvent).filter(ev => ev.unscheduled || isScheduledEvent(ev));
   renderPreview(parsedEvents);
   document.getElementById('preview-section').style.display = 'block';
   if (shouldScroll) document.getElementById('preview-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -853,6 +915,11 @@ function showPreview(events, shouldScroll = true) {
   document.getElementById('num1').textContent = '✓';
   document.getElementById('num2').textContent = '✓';
   document.getElementById('num3').textContent = '✓';
+}
+
+function deleteCourse(courseKey) {
+  parsedEvents = parsedEvents.filter(ev => ev.courseName !== courseKey);
+  renderPreview(parsedEvents);
 }
  
 function parseAndPreview() {
@@ -900,6 +967,8 @@ function addManualEvent() {
 
   const added = days.map(day => ({
     name: `${course} (${type})`,
+    courseName: course,
+    type,
     day,
     startH: start.h,
     startMin: start.m,
@@ -912,7 +981,9 @@ function addManualEvent() {
 }
  
 function renderPreview(events) {
-  document.getElementById('event-count').textContent = events.length + ' sessions';
+  const scheduledEvents = events.filter(isScheduledEvent);
+  const unscheduledEvents = events.filter(ev => ev.unscheduled);
+  document.getElementById('event-count').textContent = scheduledEvents.length + ' calendar sessions' + (unscheduledEvents.length ? ' · ' + unscheduledEvents.length + ' TBA' : '');
  
   // ── CALENDAR GRID ──
   const START_HOUR = 7;
@@ -942,7 +1013,7 @@ function renderPreview(events) {
   grid.style.gridTemplateColumns = '48px repeat(5, 1fr)';
   grid.innerHTML = gridHTML;
  
-  events.forEach(ev => {
+  scheduledEvents.forEach(ev => {
     const dayIdx = DAYS.indexOf(ev.day);
     if(dayIdx === -1) return;
     const topMin = (ev.startH * 60 + ev.startMin) - (START_HOUR * 60);
@@ -982,27 +1053,53 @@ function renderPreview(events) {
   });
  
   // ── COURSE LIST ──
-  // Group by unique course name
   const byName = {};
   events.forEach(ev => {
-    if(!byName[ev.name]) byName[ev.name] = { days: [], ev };
-    if(!byName[ev.name].days.includes(ev.day)) byName[ev.name].days.push(ev.day);
+    const key = ev.courseName || getCourseKeyFromName(ev.name);
+    if(!byName[key]) byName[key] = { scheduled: [], unscheduled: [], color: ev.color, courseName: key };
+    if(isScheduledEvent(ev)) byName[key].scheduled.push(ev);
+    else byName[key].unscheduled.push(ev);
   });
  
   const listEl = document.getElementById('course-list');
   listEl.innerHTML = '';
-  Object.entries(byName).forEach(([name, info]) => {
-    const ev = info.ev;
-    const end = addMin(ev.startH, ev.startMin, ev.durMin);
-    const daysStr = info.days.map(d => DAY_NAMES[d]).join(', ');
+  Object.entries(byName).forEach(([courseKey, info]) => {
+    const firstScheduled = info.scheduled[0];
+    const color = info.color || 'default';
+    const details = [];
+    const meetings = {};
+    info.scheduled.forEach(ev => {
+      const sig = `${ev.name}|${ev.startH}:${ev.startMin}|${ev.durMin}|${ev.location}`;
+      if(!meetings[sig]) meetings[sig] = { ev, days: [] };
+      if(!meetings[sig].days.includes(ev.day)) meetings[sig].days.push(ev.day);
+    });
+    Object.values(meetings).forEach(group => {
+      const ev = group.ev;
+      const end = addMin(ev.startH, ev.startMin, ev.durMin);
+      details.push(`${group.days.map(d => DAY_NAMES[d]).join(', ')} · ${fmt12(ev.startH, ev.startMin)}–${fmt12(end.h, end.m)}${ev.location ? ' · ' + ev.location : ''}`);
+    });
+    info.unscheduled.forEach(ev => {
+      details.push(`${ev.type || 'Class'} · ${ev.note || 'TBA'} · not exported`);
+    });
     const item = document.createElement('div');
     item.className = 'course-item';
+    item.style.borderLeftColor = getComputedStyle(document.documentElement).getPropertyValue('--border');
+    const colorEvent = firstScheduled || info.unscheduled[0] || { color };
+    const colorMap = {
+      dkred:'#c0392b', ltred:'#e74c3c', dkgreen:'#27ae60', ltgreen:'#2ecc71',
+      dkblue:'#2980b9', ltblue:'#3498db', ltbrown:'#d4874a', gold:'#c99700',
+      teal:'#1f9a94', violet:'#8e5ad8', default:'#7a7aad'
+    };
+    item.style.borderLeftColor = colorMap[colorEvent.color] || colorMap.default;
     item.innerHTML = `
       <div>
-        <div class="course-item-name">${name}</div>
-        <div class="course-item-detail">${daysStr} · ${fmt12(ev.startH, ev.startMin)}–${fmt12(end.h, end.m)}${ev.location ? ' · ' + ev.location : ''}</div>
+        <div class="course-item-name">${courseKey}</div>
+        <div class="course-item-detail">${details.join('<br>')}</div>
       </div>
-      <div class="course-badge" style="background:var(--green-light);color:var(--green);">✓ Ready</div>
+      <div class="course-item-actions">
+        <div class="course-badge" style="background:${info.unscheduled.length ? 'var(--gold-light)' : 'var(--green-light)'};color:${info.unscheduled.length ? 'var(--gold)' : 'var(--green)'};">${info.scheduled.length ? 'Ready' : 'TBA only'}</div>
+        <button class="delete-course-btn" title="Delete this class" onclick="deleteCourse(${JSON.stringify(courseKey).replace(/"/g,'&quot;')})">×</button>
+      </div>
     `;
     listEl.appendChild(item);
   });
@@ -1025,7 +1122,7 @@ function buildICS() {
   ];
  
   let uid = 0;
-  parsedEvents.forEach(ev => {
+  parsedEvents.filter(isScheduledEvent).forEach(ev => {
     const firstDay = getFirstOccurrence(qstart, ev.day);
     const end = addMin(ev.startH, ev.startMin, ev.durMin);
     uid++;
@@ -1044,7 +1141,7 @@ function buildICS() {
 }
  
 function exportICS() {
-  if(!parsedEvents.length) { alert('No events to export.'); return; }
+  if(!parsedEvents.filter(isScheduledEvent).length) { alert('No scheduled events to export. TBA-only classes stay visible in the app but are not added to the calendar file.'); return; }
   const ics = buildICS();
   const blob = new Blob([ics], { type: 'text/calendar' });
   const a = document.createElement('a');
@@ -1055,7 +1152,7 @@ function exportICS() {
 }
  
 function copyICS() {
-  if(!parsedEvents.length) { alert('No events to export.'); return; }
+  if(!parsedEvents.filter(isScheduledEvent).length) { alert('No scheduled events to export. TBA-only classes stay visible in the app but are not added to the calendar file.'); return; }
   navigator.clipboard.writeText(buildICS()).then(() => {
     const btn = document.querySelectorAll('.export-btn')[1];
     btn.textContent = 'Copied!';
