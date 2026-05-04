@@ -450,6 +450,9 @@ main { max-width: 960px; margin: 0 auto; padding: 2rem; }
 <script>
 // ─── SCRAPER SCRIPT (runs on Schedule Builder list view) ─────────────────────
 const SCRAPER = `(function(){
+  var COURSE_RE=/^[A-Z]{2,5}\\s*\\d{1,3}[A-Z]*\\b/;
+  var MEETING_RE=/^(Lecture|Laboratory|Lab|Discussion|Rehearsal|Performance Instruction|Independent Study|World Wide Web Virtual Lecture|Seminar|Studio|Fieldwork|Activity)\\s+(\\d{1,2}:\\d{2}\\s*[AP]M\\s*-\\s*\\d{1,2}:\\d{2}\\s*[AP]M)\\s+([MTWRF]{1,5})\\s*(.*)$/i;
+
   function parseTime(t){
     var m=t.trim().match(/(\\d+):(\\d+)\\s*(AM|PM)/i);
     if(!m)return null;
@@ -466,87 +469,128 @@ const SCRAPER = `(function(){
     }
     return r;
   }
+  function norm(s){
+    return (s||'').replace(/\\u00a0/g,' ').replace(/[ \\t]+/g,' ').trim();
+  }
+  function cleanCourseTitle(s){
+    return norm(s).replace(/\\s+Registered\\b.*$/i,'').replace(/\\s+Actions\\b.*$/i,'');
+  }
+  function looksLikeCourseTitle(s){
+    s=cleanCourseTitle(s);
+    return COURSE_RE.test(s)&&!/^Course Details/i.test(s)&&s.length<160;
+  }
+  function getCourseTitle(scope){
+    var nodes=Array.from(scope.querySelectorAll('*'));
+    for(var i=0;i<nodes.length;i++){
+      var t=cleanCourseTitle(nodes[i].innerText||nodes[i].textContent||'');
+      if(looksLikeCourseTitle(t))return t.split('\\n')[0];
+    }
+    var text=scope.innerText||scope.textContent||'';
+    var m=text.match(/[A-Z]{2,5}\\s*\\d{1,3}[A-Z]*\\s+[A-Z0-9]{3}\\b[^\\n]*/);
+    return m?cleanCourseTitle(m[0]):'Unknown';
+  }
+  function bestCourseBlock(registeredEl){
+    var best=null,p=registeredEl.parentElement,depth=0;
+    while(p&&p!==document.body&&depth++<18){
+      var txt=norm(p.innerText||p.textContent||'');
+      if(/\\bRegistered\\b/.test(txt)&&COURSE_RE.test(txt)&&/\\bCRN\\b/i.test(txt)){
+        best=p;
+        if(/Course Details|Important Course Details/i.test(txt))break;
+      }
+      p=p.parentElement;
+    }
+    return best;
+  }
+  function expandVisibleDetails(){
+    Array.from(document.querySelectorAll('button,a,[role="button"],.panel-heading,.accordion-toggle')).forEach(function(el){
+      var txt=norm(el.innerText||el.textContent||'');
+      if(!/^(Important Course Details|Course Details)$/i.test(txt))return;
+      if(el.getAttribute('aria-expanded')==='false'||/collapsed/i.test(el.className||'')){
+        try{el.click();}catch(e){}
+      }
+    });
+  }
+  function parseMeetingParts(parts){
+    parts=parts.map(norm).filter(Boolean);
+    if(parts.length<3)return null;
+    var joined=parts.join(' ');
+    var timeStr=parts.find(function(t){return /\\d{1,2}:\\d{2}\\s*[AP]M\\s*-\\s*\\d{1,2}:\\d{2}\\s*[AP]M/i.test(t);});
+    if(!timeStr)return null;
+    var daysStr=parts.find(function(t){return /^[MTWRF]{1,5}$/.test(t);})||'';
+    if(!daysStr)return null;
+    var timeIdx=parts.indexOf(timeStr);
+    var daysIdx=parts.indexOf(daysStr);
+    var type=parts[0]||'Class';
+    var loc=parts.slice(daysIdx+1).join(' ');
+    if(!loc){
+      var m=joined.match(MEETING_RE);
+      if(m)loc=norm(m[4]||'');
+    }
+    return {type:type,timeStr:timeStr,daysStr:daysStr,loc:loc};
+  }
+  function parseMeetingLine(line){
+    line=norm(line);
+    if(!line||/\\bTBA\\b/i.test(line)&&!/\\d{1,2}:\\d{2}/.test(line))return null;
+    var m=line.match(MEETING_RE);
+    if(!m)return null;
+    return {type:norm(m[1]),timeStr:norm(m[2]),daysStr:norm(m[3]),loc:norm(m[4]||'')};
+  }
+  function addMeeting(courseName, meeting, events, seen){
+    if(!meeting)return;
+    var tm=meeting.timeStr.match(/(\\d{1,2}:\\d{2}\\s*[AP]M)\\s*-\\s*(\\d{1,2}:\\d{2}\\s*[AP]M)/i);
+    if(!tm)return;
+    var st=parseTime(tm[1]),et=parseTime(tm[2]);
+    if(!st||!et)return;
+    var durMin=(et.h*60+et.min)-(st.h*60+st.min);
+    if(durMin<=0)durMin+=1440;
+    var days=expandDays(meeting.daysStr);
+    if(days.length===0)return;
+    var key=courseName+'|'+meeting.type+'|'+meeting.timeStr+'|'+meeting.daysStr+'|'+meeting.loc;
+    if(seen[key])return;
+    seen[key]=true;
+    days.forEach(function(day){
+      events.push({
+        name:courseName+' ('+meeting.type+')',
+        day:day,
+        startH:st.h,
+        startMin:st.min,
+        durMin:durMin,
+        location:meeting.loc,
+        color:'default'
+      });
+    });
+  }
  
-  // Step 1: find all top-level course blocks that have "Registered" badge
-  // The page structure is: one big container per course, each has a "Registered" span/div
-  // and inside it has a table with Lecture/Lab/Discussion rows
   var events=[];
   var seen={};
+  expandVisibleDetails();
  
-  // Find every element that contains the text "Registered" as a badge/status
-  // then walk up to get the course container
   var registeredBlocks=new Set();
   document.querySelectorAll('*').forEach(function(el){
     if(el.children.length===0&&el.textContent.trim()==='Registered'){
-      // Walk up until we find a block that contains a course code
-      var p=el.parentElement;
-      var depth=0;
-      while(p&&p!==document.body&&depth++<10){
-        var txt=p.textContent||'';
-        if(/[A-Z]{2,4}\\s*\\d{3}/.test(txt)&&txt.length<2000){
-          registeredBlocks.add(p);
-          break;
-        }
-        p=p.parentElement;
-      }
+      var block=bestCourseBlock(el);
+      if(block)registeredBlocks.add(block);
     }
   });
  
-  // If we found registered blocks, scrape only from those
   var searchScope=registeredBlocks.size>0?Array.from(registeredBlocks):[document.body];
  
   searchScope.forEach(function(scope){
-    // Get course name from this block
-    var nameEl=null;
-    Array.from(scope.querySelectorAll('*')).forEach(function(n){
-      if(!nameEl&&n.children.length<3&&/^[A-Z]{2,4}\\s*\\d{3}/.test(n.textContent.trim())){
-        nameEl=n;
-      }
-    });
-    var courseName=nameEl?nameEl.textContent.trim().split('\\n')[0].replace(/\\s*(Registered)\\s*/g,'').trim():'Unknown';
+    var courseName=getCourseTitle(scope);
  
     scope.querySelectorAll('tr').forEach(function(row){
       var tds=Array.from(row.querySelectorAll('td'));
       if(tds.length<3)return;
-      var texts=tds.map(function(t){return t.textContent.trim();});
- 
-      // Must have a real time range (skip TBA rows)
-      var timeStr=texts.find(function(t){return/(\\d+):(\\d+)\\s*(AM|PM).*-.*\\d+:\\d+\\s*(AM|PM)/i.test(t);});
-      if(!timeStr)return;
- 
-      var tm=timeStr.match(/(\\d+:\\d+\\s*[AP]M)\\s*-\\s*(\\d+:\\d+\\s*[AP]M)/i);
-      if(!tm)return;
-      var st=parseTime(tm[1]),et=parseTime(tm[2]);
-      if(!st||!et)return;
-      var durMin=(et.h*60+et.min)-(st.h*60+st.min);
-      if(durMin<=0)durMin+=1440;
- 
-      // Must have real days (skip TBA/Online/blank)
-      var daysStr=texts.find(function(t){return/^[MTWRF]{1,5}$/.test(t.trim());})||'';
-      var days=expandDays(daysStr);
-      if(days.length===0)return;
- 
-      // Location
-      var loc=texts.filter(function(t){
-        return t.length>2&&!/^[MTWRF]{1,5}$/.test(t)&&!/\\d+:\\d+/.test(t)&&t!==texts[0]&&t!==courseName;
-      }).pop()||'';
- 
-      var type=texts[0]||'Class';
-      var key=courseName+'|'+type+'|'+timeStr+'|'+daysStr;
-      if(seen[key])return;
-      seen[key]=true;
- 
-      days.forEach(function(day){
-        events.push({
-          name:courseName+' ('+type+')',
-          day:day,
-          startH:st.h,
-          startMin:st.min,
-          durMin:durMin,
-          location:loc,
-          color:'default'
-        });
-      });
+      addMeeting(courseName,parseMeetingParts(tds.map(function(t){return t.innerText||t.textContent||'';})),events,seen);
+    });
+
+    Array.from(scope.querySelectorAll('div,li,p,span')).forEach(function(el){
+      if(el.querySelector('div,li,p,span,table'))return;
+      addMeeting(courseName,parseMeetingLine(el.innerText||el.textContent||''),events,seen);
+    });
+
+    (scope.innerText||scope.textContent||'').split('\\n').forEach(function(line){
+      addMeeting(courseName,parseMeetingLine(line),events,seen);
     });
   });
  
